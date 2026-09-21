@@ -1,0 +1,442 @@
+{
+    "valkyrieCharts.base.PAGINATION_TEXT": {
+        "msgId": "valkyrieCharts.base.PAGINATION_TEXT",
+        "msgValue": "Showing {startPage}-{endPage} of {total} items"
+    },
+    "valkyrieCharts.base.PAGINATION_PAGE_NUMBERS": {
+        "msgId": "valkyrieCharts.base.PAGINATION_PAGE_NUMBERS",
+        "msgValue": "Page {pageNumber} of {total}"
+    },
+    "valkyrieCharts.pivot.DATA_MISSING_WARNING": {
+        "msgId": "valkyrieCharts.pivot.DATA_MISSING_WARNING",
+        "msgValue": "No data found for this query. Try changing your filters"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.FIELD_MISSING_FOR_ROW_GRAND_TOTAL_DISPLAY_FORMAT_WARNING": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.FIELD_MISSING_FOR_ROW_GRAND_TOTAL_DISPLAY_FORMAT_WARNING",
+        "msgValue": "At least one field is required in columns for percent of row grand total display format"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.ROW_GRAND_TOTALS_DISABLED_WARNING": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.ROW_GRAND_TOTALS_DISABLED_WARNING",
+        "msgValue": "Row grand totals needs to be enabled for percent of row grand total display format"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.FIELD_MISSING_FOR_COLUMN_GRAND_TOTAL_DISPLAY_FORMAT_WARNING": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.FIELD_MISSING_FOR_COLUMN_GRAND_TOTAL_DISPLAY_FORMAT_WARNING",
+        "msgValue": "At least one field is required in rows for percent of column grand total display format"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.COLUMN_GRAND_TOTALS_DISABLED_WARNING": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.COLUMN_GRAND_TOTALS_DISABLED_WARNING",
+        "msgValue": "Column grand totals needs to be enabled for percent of column grand total display format"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.FIELD_MISSING_FOR_ROW_SUB_TOTAL_DISPLAY_FORMAT_WARNING": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.FIELD_MISSING_FOR_ROW_SUB_TOTAL_DISPLAY_FORMAT_WARNING",
+        "msgValue": "At least one field is required in columns for percent of row subtotal display format"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.ROW_GRAND_TOTALS_AND_SUB_TOTALS_DISABLED_WARNING": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.ROW_GRAND_TOTALS_AND_SUB_TOTALS_DISABLED_WARNING",
+        "msgValue": "Row grand totals and Row subtotals need to be enabled for percent of row subtotal display format"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.FIELD_MISSING_FOR_COLUMN_SUB_TOTAL_DISPLAY_FORMAT_WARNING": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.FIELD_MISSING_FOR_COLUMN_SUB_TOTAL_DISPLAY_FORMAT_WARNING",
+        "msgValue": "At least one field is required in rows for percent of column subtotal display format"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.COLUMN_GRAND_TOTALS_AND_SUB_TOTALS_DISABLED_WARNING": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.COLUMN_GRAND_TOTALS_AND_SUB_TOTALS_DISABLED_WARNING",
+        "msgValue": "Column grand totals and Column subtotals need to be enabled for percent of column subtotal display format"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.FIELD_MISSING_FOR_GRAND_TOTAL_DISPLAY_FORMAT_WARNING": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.FIELD_MISSING_FOR_GRAND_TOTAL_DISPLAY_FORMAT_WARNING",
+        "msgValue": "At least one field is required in both rows and columns for percent of grand total display format"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.ROW_AND_COLUMN_GRAND_TOTALS_DISABLED_WARNING": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.ROW_AND_COLUMN_GRAND_TOTALS_DISABLED_WARNING",
+        "msgValue": "Row grand totals and Column grand totals need to be enabled for percent of grand total display format"
+    },
+    "valkyrieCharts.chartEditor.settings.PAGE_SIZE_INVALID_WARNING": {
+        "msgId": "valkyrieCharts.chartEditor.settings.PAGE_SIZE_INVALID_WARNING",
+        "msgValue": "Page size should be a number within the range 1-{maxPageSize}"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.display.HEATMAP_MODE": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.display.HEATMAP_MODE",
+        "msgValue": "Heatmap mode"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.display.heatmapMode.ENABLE": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.display.heatmapMode.ENABLE",
+        "msgValue": "Enable"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.display.heatmapMode.INCLUDE_SUMMARIES": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.display.heatmapMode.INCLUDE_SUMMARIES",
+        "msgValue": "Include summaries"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.display.applyFormattingOn.TEXT": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.display.applyFormattingOn.TEXT",
+        "msgValue": "Text"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.display.applyFormattingOn.BACKGROUND": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.display.applyFormattingOn.BACKGROUND",
+        "msgValue": "Background"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.display.APPLY_FORMATTING_ON": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.display.APPLY_FORMATTING_ON",
+        "msgValue": "Apply formatting on"
+    },
+    "valkyrieCharts.chartEditor.settings.display.LEGEND": {
+        "msgId": "valkyrieCharts.chartEditor.settings.display.LEGEND",
+        "msgValue": "Legend"
+    },
+    "valkyrieCharts.chartEditor.settings.display.SHOW_LEGEND": {
+        "msgId": "valkyrieCharts.chartEditor.settings.display.SHOW_LEGEND",
+        "msgValue": "Show legend"
+    },
+    "valkyrieCharts.chartEditor.settings.display.legend.position.TOP": {
+        "msgId": "valkyrieCharts.chartEditor.settings.display.legend.position.TOP",
+        "msgValue": "Top"
+    },
+    "valkyrieCharts.chartEditor.settings.display.legend.position.BOTTOM": {
+        "msgId": "valkyrieCharts.chartEditor.settings.display.legend.position.BOTTOM",
+        "msgValue": "Bottom"
+    },
+    "valkyrieCharts.chartEditor.settings.display.legend.position.LEFT": {
+        "msgId": "valkyrieCharts.chartEditor.settings.display.legend.position.LEFT",
+        "msgValue": "Left"
+    },
+    "valkyrieCharts.chartEditor.settings.display.legend.position.RIGHT": {
+        "msgId": "valkyrieCharts.chartEditor.settings.display.legend.position.RIGHT",
+        "msgValue": "Right"
+    },
+    "valkyrieCharts.chartEditor.settings.display.legend.POSITION": {
+        "msgId": "valkyrieCharts.chartEditor.settings.display.legend.POSITION",
+        "msgValue": "Position"
+    },
+    "valkyrieCharts.base.chartEditor.settings.PAGINATION": {
+        "msgId": "valkyrieCharts.base.chartEditor.settings.PAGINATION",
+        "msgValue": "Pagination"
+    },
+    "valkyrieCharts.base.chartEditor.settings.pagination.ENABLE": {
+        "msgId": "valkyrieCharts.base.chartEditor.settings.pagination.ENABLE",
+        "msgValue": "Enable"
+    },
+    "valkyrieCharts.chartEditor.settings.display.PAGE_SIZE": {
+        "msgId": "valkyrieCharts.chartEditor.settings.display.PAGE_SIZE",
+        "msgValue": "Page size"
+    },
+    "valkyrieCharts.chartEditor.settings.display.VALUES": {
+        "msgId": "valkyrieCharts.chartEditor.settings.display.VALUES",
+        "msgValue": "Values"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.display.displayFormat.NO_CALCULATION": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.display.displayFormat.NO_CALCULATION",
+        "msgValue": "No calculation"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.display.displayFormat.PERCENT_OF_ROW_SUBTOTAL": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.display.displayFormat.PERCENT_OF_ROW_SUBTOTAL",
+        "msgValue": "% of row subtotal"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.display.displayFormat.PERCENT_OF_COLUMN_SUBTOTAL": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.display.displayFormat.PERCENT_OF_COLUMN_SUBTOTAL",
+        "msgValue": "% of column subtotal"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.display.displayFormat.PERCENT_OF_ROW_GRAND_TOTAL": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.display.displayFormat.PERCENT_OF_ROW_GRAND_TOTAL",
+        "msgValue": "% of row grand total"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.display.displayFormat.PERCENT_OF_COLUMN_GRAND_TOTAL": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.display.displayFormat.PERCENT_OF_COLUMN_GRAND_TOTAL",
+        "msgValue": "% of column grand total"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.display.displayFormat.PERCENT_OF_GRAND_TOTAL": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.display.displayFormat.PERCENT_OF_GRAND_TOTAL",
+        "msgValue": "% of grand total"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.display.DISPLAY_FORMAT": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.display.DISPLAY_FORMAT",
+        "msgValue": "Display format"
+    },
+    "valkyrieCharts.chartEditor.settings.DISPLAY": {
+        "msgId": "valkyrieCharts.chartEditor.settings.DISPLAY",
+        "msgValue": "Display"
+    },
+    "valkyrieCharts.chartEditor.settings.TOOLTIP": {
+        "msgId": "valkyrieCharts.chartEditor.settings.TOOLTIP",
+        "msgValue": "Tooltip"
+    },
+    "valkyrieCharts.chartEditor.settings.tooltip.SHOWHIDE": {
+        "msgId": "valkyrieCharts.chartEditor.settings.tooltip.SHOWHIDE",
+        "msgValue": "Show/Hide"
+    },
+    "valkyrieCharts.chartEditor.settings.tooltip.BACKGROUND_COLOR": {
+        "msgId": "valkyrieCharts.chartEditor.settings.tooltip.BACKGROUND_COLOR",
+        "msgValue": "Background colour"
+    },
+    "valkyrieCharts.chartEditor.settings.tooltip.SELECTED_DATA_BG_COLOR": {
+        "msgId": "valkyrieCharts.chartEditor.settings.tooltip.SELECTED_DATA_BG_COLOR",
+        "msgValue": "Selected Data background colour"
+    },
+    "valkyrieCharts.chartEditor.settings.tooltip.BORDER_COLOR": {
+        "msgId": "valkyrieCharts.chartEditor.settings.tooltip.BORDER_COLOR",
+        "msgValue": "Border colour"
+    },
+    "valkyrieCharts.chartEditor.settings.tooltip.BORDER_WIDTH": {
+        "msgId": "valkyrieCharts.chartEditor.settings.tooltip.BORDER_WIDTH",
+        "msgValue": "Border width (px)"
+    },
+    "valkyrieCharts.chartEditor.settings.tooltip.BORDER_WIDTH_INVALID_WARNING": {
+        "msgId": "valkyrieCharts.chartEditor.settings.tooltip.BORDER_WIDTH_INVALID_WARNING",
+        "msgValue": "Border width should be a number"
+    },
+    "valkyrieCharts.chartEditor.settings.tooltip.OPACITY": {
+        "msgId": "valkyrieCharts.chartEditor.settings.tooltip.OPACITY",
+        "msgValue": "Opacity (%)"
+    },
+    "valkyrieCharts.chartEditor.settings.tooltip.OPACITY_INVALID_WARNING": {
+        "msgId": "valkyrieCharts.chartEditor.settings.tooltip.OPACITY_INVALID_WARNING",
+        "msgValue": "Opacity should be a number between 0 and 100"
+    },
+    "valkyrieCharts.chartEditor.settings.tooltip.COLUMN_NAME_LABEL": {
+        "msgId": "valkyrieCharts.chartEditor.settings.tooltip.COLUMN_NAME_LABEL",
+        "msgValue": "Column name label"
+    },
+    "valkyrieCharts.chartEditor.settings.tooltip.FONT_COLOR": {
+        "msgId": "valkyrieCharts.chartEditor.settings.tooltip.FONT_COLOR",
+        "msgValue": "Font colour"
+    },
+    "valkyrieCharts.chartEditor.settings.tooltip.FONT_SIZE": {
+        "msgId": "valkyrieCharts.chartEditor.settings.tooltip.FONT_SIZE",
+        "msgValue": "Font size (px)"
+    },
+    "valkyrieCharts.chartEditor.settings.tooltip.FONT_SIZE_INVALID_WARNING": {
+        "msgId": "valkyrieCharts.chartEditor.settings.tooltip.FONT_SIZE_INVALID_WARNING",
+        "msgValue": "Font size should be a number"
+    },
+    "valkyrieCharts.chartEditor.settings.tooltip.BOLD": {
+        "msgId": "valkyrieCharts.chartEditor.settings.tooltip.BOLD",
+        "msgValue": "Bold"
+    },
+    "valkyrieCharts.chartEditor.settings.tooltip.UNDERLINE": {
+        "msgId": "valkyrieCharts.chartEditor.settings.tooltip.UNDERLINE",
+        "msgValue": "Underline"
+    },
+    "valkyrieCharts.chartEditor.settings.tooltip.ITALIC": {
+        "msgId": "valkyrieCharts.chartEditor.settings.tooltip.ITALIC",
+        "msgValue": "Italic"
+    },
+    "valkyrieCharts.chartEditor.settings.tooltip.VALUES_IN_TOOLTIP": {
+        "msgId": "valkyrieCharts.chartEditor.settings.tooltip.VALUES_IN_TOOLTIP",
+        "msgValue": "Values in tooltip"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.SUMMARY": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.SUMMARY",
+        "msgValue": "Summary"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.summary.SHOW_GRAND_TOTALS": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.summary.SHOW_GRAND_TOTALS",
+        "msgValue": "Show grand totals"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.summary.totals.ROW": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.summary.totals.ROW",
+        "msgValue": "Row"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.summary.totals.COLUMN": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.summary.totals.COLUMN",
+        "msgValue": "Column"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.summary.SHOW_SUBTOTALS": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.summary.SHOW_SUBTOTALS",
+        "msgValue": "Show subtotals"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.summary.EXPAND_COLLAPSE": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.summary.EXPAND_COLLAPSE",
+        "msgValue": ""
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.summary.summaryPosition.START": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.summary.summaryPosition.START",
+        "msgValue": "Start"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.summary.summaryPosition.END": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.summary.summaryPosition.END",
+        "msgValue": "End"
+    },
+    "valkyrieCharts.pivot.chartEditor.settings.summary.SUMMARY_POSITION": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.settings.summary.SUMMARY_POSITION",
+        "msgValue": "Summary position"
+    },
+    "valkyrieCharts.pivot.chartEditor.configure.ROWS": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.configure.ROWS",
+        "msgValue": "Rows"
+    },
+    "valkyrieCharts.pivot.chartEditor.configure.VALUES": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.configure.VALUES",
+        "msgValue": "Values"
+    },
+    "valkyrieCharts.pivot.chartEditor.configure.COLUMNS": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.configure.COLUMNS",
+        "msgValue": "Columns"
+    },
+    "valkyrieCharts.chartEditor.configure.SLICE_WITH_COLOR": {
+        "msgId": "valkyrieCharts.chartEditor.configure.SLICE_WITH_COLOR",
+        "msgValue": "Slice with colour"
+    },
+    "valkyrieCharts.chartEditor.configure.COLOR_FORMATTING": {
+        "msgId": "valkyrieCharts.chartEditor.configure.COLOR_FORMATTING",
+        "msgValue": "Colour Formatting"
+    },
+    "valkyrieCharts.chartEditor.configure.COLOR": {
+        "msgId": "valkyrieCharts.chartEditor.configure.COLOR",
+        "msgValue": "Colour"
+    },
+    "valkyrieCharts.chartEditor.configure.SORT_ORDER": {
+        "msgId": "valkyrieCharts.chartEditor.configure.SORT_ORDER",
+        "msgValue": "Sort order"
+    },
+    "valkyrieCharts.chartEditor.configure.ALPHANUMERIC": {
+        "msgId": "valkyrieCharts.chartEditor.configure.ALPHANUMERIC",
+        "msgValue": "Alphanumeric"
+    },
+    "valkyrieCharts.chartEditor.configure.CUSTOM": {
+        "msgId": "valkyrieCharts.chartEditor.configure.CUSTOM",
+        "msgValue": "Custom"
+    },
+    "valkyrieCharts.pivot.chartEditor.configure.EMPTY_SECTION_WARNING": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.configure.EMPTY_SECTION_WARNING",
+        "msgValue": "The Values section is empty"
+    },
+    "valkyrieCharts.chartEditor.configure.UNSUPPORTED_DATE_FIELD_WARNING": {
+        "msgId": "valkyrieCharts.chartEditor.configure.UNSUPPORTED_DATE_FIELD_WARNING",
+        "msgValue": "Date fields are not supported in Slice with colour"
+    },
+    "valkyrieCharts.pivot.chartEditor.configure.INVALID_COMBINATION_IN_VALUES_SECTION": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.configure.INVALID_COMBINATION_IN_VALUES_SECTION",
+        "msgValue": "The Values section cannot contain a mix of attribute and measure fields. Please use either attributes or measures, but not both."
+    },
+    "valkyrieCharts.pivot.chartEditor.configure.SINGLE_ATTRIBUTE_ALLOWED_IN_VALUES_SECTION": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.configure.SINGLE_ATTRIBUTE_ALLOWED_IN_VALUES_SECTION",
+        "msgValue": "Only one attribute field is allowed in the Values section"
+    },
+    "valkyrieCharts.pivot.chartEditor.configure.MEASURE_FIELD_REQUIRED_IN_VALUES_SECTION": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.configure.MEASURE_FIELD_REQUIRED_IN_VALUES_SECTION",
+        "msgValue": "The Values field requires measure fields in the Values section"
+    },
+    "valkyrieCharts.pivot.chartEditor.configure.VALUES_FIELD_MISSING_WARNING": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.configure.VALUES_FIELD_MISSING_WARNING",
+        "msgValue": "Place Values field in rows/columns/slice with colour"
+    },
+    "valkyrieCharts.pivot.chartEditor.configure.CONTINUOUS_FIELD_NOT_SUPPORTED": {
+        "msgId": "valkyrieCharts.pivot.chartEditor.configure.CONTINUOUS_FIELD_NOT_SUPPORTED",
+        "msgValue": "Continuous field is not supported in slice with colour when Values is there in rows/columns"
+    },
+    "valkyrieCharts.chartEditor.configure.MISSING_CURRENCY_COLUMN_WARNING": {
+        "msgId": "valkyrieCharts.chartEditor.configure.MISSING_CURRENCY_COLUMN_WARNING",
+        "msgValue": "One of the columns is missing currency information"
+    },
+    "valkyrieCharts.chartEditor.configure.MEASURE_NAME_ALIAS": {
+        "msgId": "valkyrieCharts.chartEditor.configure.MEASURE_NAME_ALIAS",
+        "msgValue": "Values"
+    },
+    "valkyrieCharts.pivot.contextMenu.DRILL_DOWN": {
+        "msgId": "valkyrieCharts.pivot.contextMenu.DRILL_DOWN",
+        "msgValue": "Drill down"
+    },
+    "valkyrieCharts.pivot.contextMenu.SORT_ASCENDING": {
+        "msgId": "valkyrieCharts.pivot.contextMenu.SORT_ASCENDING",
+        "msgValue": "Sort Ascending"
+    },
+    "valkyrieCharts.pivot.contextMenu.SORT_DESCENDING": {
+        "msgId": "valkyrieCharts.pivot.contextMenu.SORT_DESCENDING",
+        "msgValue": "Sort Descending"
+    },
+    "valkyrieCharts.pivot.contextMenu.SORT_BY_ROW": {
+        "msgId": "valkyrieCharts.pivot.contextMenu.SORT_BY_ROW",
+        "msgValue": "Sort {columnName} by this row"
+    },
+    "valkyrieCharts.pivot.contextMenu.SORT_BY_COLUMN": {
+        "msgId": "valkyrieCharts.pivot.contextMenu.SORT_BY_COLUMN",
+        "msgValue": "Sort {columnName} by this column"
+    },
+    "valkyrieCharts.pivot.contextMenu.REMOVE_ALL_SORTING": {
+        "msgId": "valkyrieCharts.pivot.contextMenu.REMOVE_ALL_SORTING",
+        "msgValue": "Remove all sorting"
+    },
+    "valkyrieCharts.pivot.contextMenu.EXPAND_ALL_ROWS": {
+        "msgId": "valkyrieCharts.pivot.contextMenu.EXPAND_ALL_ROWS",
+        "msgValue": "Expand all rows"
+    },
+    "valkyrieCharts.pivot.contextMenu.EXPAND_ALL_COLUMNS": {
+        "msgId": "valkyrieCharts.pivot.contextMenu.EXPAND_ALL_COLUMNS",
+        "msgValue": "Expand all columns"
+    },
+    "valkyrieCharts.pivot.contextMenu.EXPAND_THIS_LEVEL": {
+        "msgId": "valkyrieCharts.pivot.contextMenu.EXPAND_THIS_LEVEL",
+        "msgValue": "Expand this level"
+    },
+    "valkyrieCharts.pivot.contextMenu.COLLAPSE_ALL_ROWS": {
+        "msgId": "valkyrieCharts.pivot.contextMenu.COLLAPSE_ALL_ROWS",
+        "msgValue": "Collapse all rows"
+    },
+    "valkyrieCharts.pivot.contextMenu.COLLAPSE_ALL_COLUMNS": {
+        "msgId": "valkyrieCharts.pivot.contextMenu.COLLAPSE_ALL_COLUMNS",
+        "msgValue": "Collapse all columns"
+    },
+    "valkyrieCharts.pivot.contextMenu.COLLAPSE_THIS_LEVEL": {
+        "msgId": "valkyrieCharts.pivot.contextMenu.COLLAPSE_THIS_LEVEL",
+        "msgValue": "Collapse this level"
+    },
+    "valkyrieCharts.pivot.contextMenu.COPY_SELECTED_VALUE": {
+        "msgId": "valkyrieCharts.pivot.contextMenu.COPY_SELECTED_VALUE",
+        "msgValue": "Copy selected value"
+    },
+    "valkyrieCharts.pivot.contextMenu.COPY_ALL_VALUES": {
+        "msgId": "valkyrieCharts.pivot.contextMenu.COPY_ALL_VALUES",
+        "msgValue": "Copy all values"
+    },
+    "valkyrieCharts.cartesian.contextMenu.MERGE_WITH": {
+        "msgId": "valkyrieCharts.cartesian.contextMenu.MERGE_WITH",
+        "msgValue": ""
+    },
+    "valkyrieCharts.cartesian.contextMenu.COMPARE_WITH": {
+        "msgId": "valkyrieCharts.cartesian.contextMenu.COMPARE_WITH",
+        "msgValue": ""
+    },
+    "answer.chart.footer.finiteMsg": {
+        "msgId": "answer.chart.footer.finiteMsg",
+        "msgValue": "Showing {currentDataPointCount} of {totalDataPointCount} data points"
+    },
+    "answer.chart.footer.infiniteMsg": {
+        "msgId": "answer.chart.footer.infiniteMsg",
+        "msgValue": "Showing {currentDataPointCount} of many data points"
+    },
+    "valkyrieCharts.cartesian.validation.COLOR_FIELD_WITH_MULTIPLE_MEASURES": {
+        "msgId": "valkyrieCharts.cartesian.validation.COLOR_FIELD_WITH_MULTIPLE_MEASURES",
+        "msgValue": "When there are multiple columns on the y-axis, you cannot slice by colour. Slicing by colour with a Values field is allowed"
+    },
+    "valkyrieCharts.cartesian.validation.COLOR_FIELD_WITH_GROUPED_MEASURES": {
+        "msgId": "valkyrieCharts.cartesian.validation.COLOR_FIELD_WITH_GROUPED_MEASURES",
+        "msgValue": "When there are grouped columns on the y-axis, you cannot slice by color"
+    },
+    "valkyrieCharts.cartesian.validation.TRELLIS_WITH_ATTRIBUTE_FIELD": {
+        "msgId": "valkyrieCharts.cartesian.validation.TRELLIS_WITH_ATTRIBUTE_FIELD",
+        "msgValue": "Trellis by field must be an attribute"
+    },
+    "valkyrieCharts.cartesian.validation.AT_LEAST_ONE_X_AXIS_COLUMN_REQUIRED": {
+        "msgId": "valkyrieCharts.cartesian.validation.AT_LEAST_ONE_X_AXIS_COLUMN_REQUIRED",
+        "msgValue": "At least one X-axis column is required"
+    },
+    "valkyrieCharts.cartesian.validation.AT_LEAST_ONE_Y_AXIS_COLUMN_REQUIRED": {
+        "msgId": "valkyrieCharts.cartesian.validation.AT_LEAST_ONE_Y_AXIS_COLUMN_REQUIRED",
+        "msgValue": "At least one Y-axis column is required"
+    },
+    "valkyrieCharts.lineColumnChart.validation.AT_LEAST_TWO_Y_AXIS_COLUMNS_REQUIRED": {
+        "msgId": "valkyrieCharts.lineColumnChart.validation.AT_LEAST_TWO_Y_AXIS_COLUMNS_REQUIRED",
+        "msgValue": "At least two Y-axis columns are required"
+    },
+    "valkyrieCharts.lineColumnChart.validation.AT_LEAST_ONE_COLUMN_REQUIRED_FOR_Y_AXIS_COLUMN": {
+        "msgId": "valkyrieCharts.lineColumnChart.validation.AT_LEAST_ONE_COLUMN_REQUIRED_FOR_Y_AXIS_COLUMN",
+        "msgValue": ""
+    },
+    "valkyrieCharts.lineColumnChart.validation.AT_LEAST_ONE_COLUMN_REQUIRED_FOR_Y_AXIS_LINE": {
+        "msgId": "valkyrieCharts.lineColumnChart.validation.AT_LEAST_ONE_COLUMN_REQUIRED_FOR_Y_AXIS_LINE",
+        "msgValue": ""
+    },
+    "valkyrieCharts.lineColumnChart.validation.COLOR_FIELD_NOT_ALLOWED": {
+        "msgId": "valkyrieCharts.lineColumnChart.validation.COLOR_FIELD_NOT_ALLOWED",
+        "msgValue": "Colour field is not allowed for Line Column Chart"
+    }
+}

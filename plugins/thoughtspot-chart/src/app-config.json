@@ -1,0 +1,251 @@
+{
+  "dateFormatsConfig": {
+    "tsLocaleBasedDateFormats": {
+      "DATE_SHORT": "dd/MM/yyyy",
+      "DATE_SHORT_2_DIGIT_YEAR": "dd/MM/yy",
+      "DATE_SHORT_WITH_HOUR": "dd/MM/yyyy hh a",
+      "DATE_SHORT_WITH_HOUR_WITHOUT_YEAR": "dd/MM hh a",
+      "DATE_SHORT_WITH_HOUR_24": "dd/MM/yy HH",
+      "DATE_SHORT_WITH_HOUR_24_WITHOUT_YEAR": "dd/MM HH",
+      "DATETIME_SHORT": "dd/MM/yyyy hh:mm a",
+      "DATETIME_SHORT_WITHOUT_YEAR": "dd/MM hh:mm a",
+      "DATETIME_24_SHORT": "dd/MM/yy HH:mm",
+      "DATETIME_24_SHORT_WITH_MILLIS": "dd/MM/yyyy HH:mm:ss.S",
+      "DATETIME_24_SHORT_WITH_MILLIS_WITHOUT_YEAR": "dd/MM HH:mm:ss.S",
+      "DATETIME_SHORT_WITH_SECONDS": "dd/MM/yyyy HH:mm:ss",
+      "DATETIME_SHORT_WITH_SECONDS_WITHOUT_YEAR": "dd/MM HH:mm:ss",
+      "DATETIME_SHORT_WITH_MILLIS": "MM/dd/yyyy HH:mm:ss.S",
+      "DATETIME_SHORT_WITH_MILLIS_WITHOUT_YEAR": "MM/dd HH:mm:ss.S",
+      "QUARTER_WITH_YEAR": "'Q'q yyyy",
+      "QUARTER_WITH_2_DIGIT_YEAR": "'Q'q yy",
+      "DEFAULT_TIME_FORMAT": "dd MMM, yyyy hh:mm:ss a ZZZZ",
+      "MONTH_WITH_YEAR": "MMM yyyy",
+      "MONTH_WITH_DAY_AND_YEAR": "dd MMM, yyyy",
+      "MONTH_WITH_2_DIGIT_YEAR": "MMM yy",
+      "DAY_WITH_MONTH": "dd MMM",
+      "DAY_WITH_MONTH_NUM": "dd/MM",
+      "QUARTER": "'Q'q",
+      "MONTH_ONLY": "MMM",
+      "DATETIME_WITH_SHORT_OFFSET": "dd/MM/yyyy HH:mm:ss ZZZZ"
+    },
+    "tsLocaleBasedStringsFormats": {
+      "invalidDate": "Invalid Date",
+      "null_value_placeholder_label": "{Null}",
+      "other_value_placeholder_label": "{Other}",
+      "empty_value_placeholder_label": "{Empty}",
+      "unavailabe_column_sample_value": "N/A",
+      "quarter_of_year": "Q{1}",
+      "weekOfDay": {
+        "Monday": "Monday",
+        "Tuesday": "Tuesday",
+        "Wednesday": "Wednesday",
+        "Thursday": "Thursday",
+        "Friday": "Friday",
+        "Saturday": "Saturday",
+        "Sunday": "Sunday"
+      },
+      "monthOfYear": {
+        "January": "January",
+        "February": "February",
+        "March": "March",
+        "April": "April",
+        "May": "May",
+        "June": "June",
+        "July": "July",
+        "August": "August",
+        "September": "September",
+        "October": "October",
+        "November": "November",
+        "December": "December"
+      }
+    },
+    "tsDateConstants": {
+      "day_in_month_format": "e",
+      "day_in_quarter_format": "e",
+      "day_in_year_format": "j",
+      "day_of_week_format": "e",
+      "month_in_quarter_format": "m",
+      "month_in_year_format": "m",
+      "week_in_year_format": "V",
+      "special_value_unavailable": "601d5a70-d354-4aab-aa7c-b0f712f51ae3"
+    },
+    "tsDefinedCustomCalenders": {
+      "43121d86-347a-4dbb-bea8-5e5bb899e427": {
+        "calendar": "7573c08b-753b-478b-84fd-6e702d481ff6",
+        "french": "a7316e8d-d4dd-4eaf-9294-396db951b422"
+      }
+    },
+    "defaultDataSourceId": "43121d86-347a-4dbb-bea8-5e5bb899e427"
+  },
+  "styleConfig": {
+    "appBackground": {
+      "color": "#eef1f4"
+    },
+    "appPanelColor": {
+      "color": "#303540"
+    },
+    "chartColorPalettes": [
+      {
+        "colors": [
+          [
+            "#ABC7F9",
+            "#71A1F4",
+            "#2E75F0",
+            "#2359B6",
+            "#163772",
+            "#B5ECF2",
+            "#82DFE9",
+            "#48D1E0",
+            "#369FAA",
+            "#22636B",
+            "#FDE9AF",
+            "#FCD977",
+            "#FCC838",
+            "#BF982A",
+            "#785F1A",
+            "#9BE5CB",
+            "#56D3A8",
+            "#06BF7F",
+            "#049160",
+            "#025B3C",
+            "#D1C0FB",
+            "#B094F8",
+            "#8C62F5",
+            "#6A4ABA",
+            "#422E75",
+            "#FFCCB3",
+            "#FFA97E",
+            "#FF8142",
+            "#C26232",
+            "#7A3D1F",
+            "#BEC6D0",
+            "#A2ACBA",
+            "#747E8C",
+            "#47515F",
+            "#2F3947",
+            "#F9B3B9",
+            "#F47E89",
+            "#F04152",
+            "#B6313E",
+            "#721F27"
+          ]
+        ]
+      }
+    ],
+    "numColorPalettes": 8,
+    "disableColorRotation": false,
+    "chartFeatureToFontGuid": {},
+    "fontFaces": [
+      {
+        "guid": null,
+        "family": "Optimo-Plain",
+        "format": "opentype",
+        "color": "black",
+        "weight": "400",
+        "style": "normal",
+        "size": "14",
+        "url": "/font/optimo/Plain-Light.otf"
+      },
+      {
+        "guid": null,
+        "family": "Optimo-Plain",
+        "format": "opentype",
+        "color": "black",
+        "weight": "400",
+        "style": "italic",
+        "size": "14",
+        "url": "/font/optimo/Plain-LightIta.otf"
+      },
+      {
+        "guid": null,
+        "family": "Optimo-Plain",
+        "format": "opentype",
+        "color": "black",
+        "weight": "600",
+        "style": "normal",
+        "size": "14",
+        "url": "/font/optimo/Plain-Regular.otf"
+      },
+      {
+        "guid": null,
+        "family": "Optimo-Plain",
+        "format": "opentype",
+        "color": "black",
+        "weight": "600",
+        "style": "italic",
+        "size": "14",
+        "url": "/font/optimo/Plain-RegularIta.otf"
+      },
+      {
+        "guid": null,
+        "family": "Optimo-Plain",
+        "format": "truetype",
+        "color": "black",
+        "weight": "700",
+        "style": "normal",
+        "size": "14",
+        "url": "/font/optimo/Plain-Medium.ttf"
+      },
+      {
+        "guid": null,
+        "family": "Optimo-Plain",
+        "format": "truetype",
+        "color": "black",
+        "weight": "700",
+        "style": "italic",
+        "size": "14",
+        "url": "/font/optimo/Plain-MediumIta.ttf"
+      },
+      {
+        "guid": null,
+        "family": "BB-Roller-Regular",
+        "format": "truetype",
+        "color": "black",
+        "weight": "400",
+        "style": "normal",
+        "size": "14",
+        "url": "/font/bb-roller/BB-Roller-Mono-Regular-fontlab.ttf"
+      },
+      {
+        "guid": null,
+        "family": "BB-Roller-Mono-semibold",
+        "format": "truetype",
+        "color": "black",
+        "weight": "600",
+        "style": "normal",
+        "size": "14",
+        "url": "/font/bb-roller/BB-Roller-Mono-ProTx-semibold.otf"
+      }
+    ]
+  },
+  "embedCssStyles": {},
+  "appOptions": {
+    "isMobile": false,
+    "isPrintMode": false,
+    "isDebugMode": true,
+    "isLiveboardContext": false,
+    "isTestMode": true
+  },
+  "userInfo": {
+    "userGuid": "59481331-ee53-42be-a548-bd87be6ddd4a",
+    "userProperties": {
+      "persona": "BUSINESS_USER"
+    }
+  },
+  "releaseVersion": "test",
+  "localeOptions": {
+    "locale": "en-gb",
+    "currencyLocale": null,
+    "sessionTimezone": "America/Los_Angeles",
+    "quarterStartMonth": 1,
+    "numberLocale": "en-GB",
+    "dateLocale": "en-GB"
+  },
+  "appUrl": "https://hc-advanced.pdom.thoughtspot.com?chartType=advanced_column",
+  "chartAppAccessToken": "",
+  "initFlags": {},
+  "invalidValuePlaceholders": {
+    "nullPlaceholder": "{Null}",
+    "emptyPlaceholder": "{Empty}"
+  }
+}
