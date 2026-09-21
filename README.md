@@ -25,7 +25,7 @@ pnpm typecheck
 pnpm build
 ```
 
-Sign in with one of the tokens from `DEV_USERS` in `backend/.env` (`dev-alice-token`, `dev-bob-token`). Each token is a different user with a different homepage. To sign real users in, set `THOUGHTSPOT_HOST` in `backend/.env`; a token presented at sign-in is then validated against that instance's `auth/session/user` endpoint.
+With `DEV_DEFAULT_USER=alice` in `backend/.env` there is no sign-in step: the homepage opens as Alice. Remove that line to get the token sign-in screen instead; the tokens in `DEV_USERS` (`dev-alice-token`, `dev-bob-token`) are separate users with separate homepages. To sign real users in, set `THOUGHTSPOT_HOST` in `backend/.env`; a token presented at sign-in is then validated against that instance's `auth/session/user` endpoint.
 
 ## How it fits together
 

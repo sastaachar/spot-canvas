@@ -12,6 +12,7 @@ export interface Config {
   frontendOrigin: string;
   thoughtSpotHost: string | null;
   devUsers: Map<string, Identity>;
+  devDefaultUserId: string | null;
   dataDir: string;
   sessionTtlMs: number;
   cookieSecure: boolean;
@@ -83,12 +84,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (thoughtSpotHost === null && devUsers.size === 0) {
     throw new ConfigError('Set THOUGHTSPOT_HOST or DEV_USERS: the API refuses to start without a way to authenticate users');
   }
+  const devDefaultUserId = env['DEV_DEFAULT_USER']?.trim() || null;
+  if (devDefaultUserId !== null && ![...devUsers.values()].some((u) => u.id === devDefaultUserId)) {
+    throw new ConfigError('DEV_DEFAULT_USER must be the id of one of the DEV_USERS entries');
+  }
   return {
     host: env['HOST'] || DEFAULT_HOST,
     port: parseInteger('PORT', env['PORT'], DEFAULT_PORT, MAX_PORT),
     frontendOrigin: env['FRONTEND_ORIGIN'] || DEFAULT_FRONTEND_ORIGIN,
     thoughtSpotHost,
     devUsers,
+    devDefaultUserId,
     dataDir: env['DATA_DIR'] || DEFAULT_DATA_DIR,
     sessionTtlMs: parseInteger('SESSION_TTL_MS', env['SESSION_TTL_MS'], DEFAULT_SESSION_TTL_MS, Number.MAX_SAFE_INTEGER),
     cookieSecure: env['COOKIE_SECURE'] !== 'false'

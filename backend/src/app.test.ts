@@ -23,6 +23,7 @@ const config: Config = {
   frontendOrigin: 'http://localhost:5173',
   thoughtSpotHost: null,
   devUsers: users,
+  devDefaultUserId: null,
   dataDir: '',
   sessionTtlMs: 60_000,
   cookieSecure: false
@@ -42,11 +43,11 @@ interface Running {
   base: string;
 }
 
-async function start(dir: string, loginLimit: number): Promise<Running> {
+async function start(dir: string, loginLimit: number, overrides: Partial<Config> = {}): Promise<Running> {
   const layouts = new LayoutStore(dir);
   await layouts.init();
   const app = createApp({
-    config: { ...config, dataDir: dir },
+    config: { ...config, dataDir: dir, ...overrides },
     auth: flakyAuth,
     sessions: new SessionStore(config.sessionTtlMs),
     layouts,
@@ -222,6 +223,34 @@ describe('layouts', () => {
     const huge = JSON.stringify({ version: 1, panels: [], pad: 'x'.repeat(300 * 1024) });
     const res = await api('/api/layout', { method: 'PUT', headers: { ...json, ...csrf }, body: huge }, alice);
     expect(res.status).toBe(413);
+  });
+});
+
+describe('dev default user', () => {
+  it('opens a session for the default dev user when none exists, and never without the setting', async () => {
+    const auto = await start(dir, 1000, { devDefaultUserId: 'u-bob' });
+    try {
+      const me = await fetch(`${auto.base}/api/me`);
+      expect(me.status).toBe(200);
+      expect(await me.json()).toEqual({ user: { id: 'u-bob', name: 'bob', displayName: 'Bob' } });
+      const cookie = (me.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+      expect(cookie.startsWith('sc_session=')).toBe(true);
+      const again = await fetch(`${auto.base}/api/me`, { headers: { Cookie: cookie } });
+      expect(again.headers.get('set-cookie')).toBeNull();
+      expect((await fetch(`${auto.base}/api/layout`)).status).toBe(204);
+    } finally {
+      await stop(auto);
+    }
+    expect((await api('/api/me')).status).toBe(401);
+  });
+
+  it('rejects a default user that is not a dev user', async () => {
+    const bad = await start(dir, 1000, { devDefaultUserId: 'u-nobody' });
+    try {
+      expect((await fetch(`${bad.base}/api/me`)).status).toBe(401);
+    } finally {
+      await stop(bad);
+    }
   });
 });
 

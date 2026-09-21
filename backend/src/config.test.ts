@@ -42,6 +42,12 @@ describe('loadConfig', () => {
     });
   });
 
+  it('accepts a default dev user only when it is one of the dev users', () => {
+    expect(loadConfig({ DEV_USERS: devUsers, DEV_DEFAULT_USER: 'alice' }).devDefaultUserId).toBe('alice');
+    expect(loadConfig({ DEV_USERS: devUsers }).devDefaultUserId).toBeNull();
+    expect(() => loadConfig({ DEV_USERS: devUsers, DEV_DEFAULT_USER: 'zed' })).toThrow(/DEV_DEFAULT_USER/);
+  });
+
   it('rejects bad values', () => {
     expect(() => loadConfig({ THOUGHTSPOT_HOST: 'http://insecure.example' })).toThrow(/https/);
     expect(() => loadConfig({ THOUGHTSPOT_HOST: 'not a url' })).toThrow(/URL/);

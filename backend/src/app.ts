@@ -56,6 +56,21 @@ export function createApp(deps: AppDeps): Handler {
     return { sid, identity: deps.sessions.get(sid) };
   };
 
+  const startSession = (res: ServerResponse, identity: Identity): void => {
+    const sid = deps.sessions.create(identity);
+    res.setHeader('Set-Cookie', sessionCookie(sid, config.sessionTtlMs, config.cookieSecure));
+  };
+
+  // Local development only: with DEV_DEFAULT_USER set, a request without a session is
+  // treated as that dev user so the homepage opens without a sign-in step.
+  const identityOrDevDefault = (req: IncomingMessage, res: ServerResponse): Identity | null => {
+    const { identity } = currentSession(req);
+    if (identity || !config.devDefaultUserId) return identity;
+    const fallback = [...config.devUsers.values()].find((u) => u.id === config.devDefaultUserId) ?? null;
+    if (fallback) startSession(res, fallback);
+    return fallback;
+  };
+
   return async (req, res) => {
     applyBaseHeaders(res);
     try {
@@ -77,8 +92,7 @@ export function createApp(deps: AppDeps): Handler {
         if (!body.success) throw new HttpError(400, 'invalid_body');
         const identity = await deps.auth.authenticate(body.data.token);
         if (!identity) throw new HttpError(401, 'invalid_token');
-        const sid = deps.sessions.create(identity);
-        res.setHeader('Set-Cookie', sessionCookie(sid, config.sessionTtlMs, config.cookieSecure));
+        startSession(res, identity);
         return sendJson(res, 200, { user: userView(identity) });
       }
 
@@ -89,7 +103,7 @@ export function createApp(deps: AppDeps): Handler {
         return sendEmpty(res, 204);
       }
 
-      const { identity } = currentSession(req);
+      const identity = identityOrDevDefault(req, res);
       if (!identity) throw new HttpError(401, 'unauthenticated');
 
       if (pathname === '/api/me' && method === 'GET') return sendJson(res, 200, { user: userView(identity) });

@@ -70,6 +70,7 @@ describe('chain and authenticatorFor', () => {
     frontendOrigin: 'http://localhost:5173',
     thoughtSpotHost: null,
     devUsers: new Map(),
+    devDefaultUserId: null,
     dataDir: 'data',
     sessionTtlMs: 1000,
     cookieSecure: true
