@@ -6,3 +6,5 @@ coverage/
 *.log
 .env
 .env.*
+# built ThoughtSpot chart bundle (20 MB); see plugins/thoughtspot-chart/README.md
+apps/web/public/valkyrie/

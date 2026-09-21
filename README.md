@@ -4,10 +4,15 @@ A blank canvas. Nothing on it until you add a plugin. One codebase, running in t
 
 ```
 packages/sdk        plugin contract: manifest schema, PluginApi types, definePlugin()
-plugins/*           first-party plugins (workflow, embed, note, timer), vanilla TS against the SDK
+plugins/*           first-party plugins (workflow, embed, thoughtspot-chart, note, timer), vanilla TS against the SDK
 apps/web            the product: Vite + React + Zustand
 apps/desktop        Electron shell around apps/web; adds a layout file in userData
 ```
+
+`plugins/thoughtspot-chart` renders a saved ThoughtSpot Answer's chart with
+ThoughtSpot's own chart engine from a single API call — no ThoughtSpot app in the
+page. It needs the chart bundle under `apps/web/public/valkyrie/` and the dev
+proxy credentials described in [its README](plugins/thoughtspot-chart/README.md).
 
 ## Run
 
