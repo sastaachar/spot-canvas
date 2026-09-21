@@ -39,20 +39,27 @@ describe('api client', () => {
     await expect(fetchMe()).rejects.toBeInstanceOf(ApiError);
   });
 
-  it('signIn posts the token as JSON and maps failures to messages', async () => {
+  it('signIn posts the credentials as JSON and maps failures to messages', async () => {
+    const creds = { clusterUrl: 'my.thoughtspot.cloud', username: 'jdoe', password: 'pw' };
     fetchMock.mockResolvedValueOnce(reply(200, { user }));
-    expect(await signIn('tok')).toEqual(user);
+    expect(await signIn(creds)).toEqual(user);
     const { init, headers } = lastCall();
     expect(init.method).toBe('POST');
-    expect(init.body).toBe(JSON.stringify({ token: 'tok' }));
+    expect(init.body).toBe(JSON.stringify(creds));
     expect(headers.get('Content-Type')).toBe('application/json');
 
     fetchMock.mockResolvedValueOnce(reply(401));
-    await expect(signIn('bad')).rejects.toThrow(/not accepted/);
+    await expect(signIn(creds)).rejects.toThrow(/not accepted/);
+    fetchMock.mockResolvedValueOnce(reply(400, { error: 'invalid_cluster_url', message: 'The cluster URL must use https.' }));
+    await expect(signIn(creds)).rejects.toThrow(/must use https/);
+    fetchMock.mockResolvedValueOnce(reply(400, 'garbage'));
+    await expect(signIn(creds)).rejects.toThrow(/Check the cluster URL/);
     fetchMock.mockResolvedValueOnce(reply(429));
-    await expect(signIn('bad')).rejects.toThrow(/Too many/);
+    await expect(signIn(creds)).rejects.toThrow(/Too many/);
     fetchMock.mockResolvedValueOnce(reply(502));
-    await expect(signIn('bad')).rejects.toMatchObject({ status: 502 });
+    await expect(signIn(creds)).rejects.toThrow(/could not be reached/);
+    fetchMock.mockResolvedValueOnce(reply(500));
+    await expect(signIn(creds)).rejects.toMatchObject({ status: 500 });
   });
 
   it('signOut deletes the session', async () => {

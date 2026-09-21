@@ -27,7 +27,8 @@ const config: Config = {
   dataDir: '',
   sessionTtlMs: 60_000,
   cookieSecure: false,
-  gateway: { url: 'https://llm.example/v1', key: 'test-key', model: 'test-model' }
+  gateway: { url: 'https://llm.example/v1', key: 'test-key', model: 'test-model' },
+  allowLocalClusters: false
 };
 
 const LOGIN_LIMIT = 6;
@@ -56,6 +57,7 @@ async function start(dir: string, loginLimit: number, overrides: Partial<Config>
     loginLimiter: new RateLimiter(loginLimit, 60_000),
     chatLimiter: new RateLimiter(1000, 60_000),
     gatewayFetch: fakeGateway,
+    clusterFetch: fakeCluster,
     log: () => {}
   });
   const server = createServer((req, res) => void app(req, res));
@@ -73,6 +75,14 @@ const fakeGateway = async (_url: string, init?: RequestInit): Promise<Response> 
   if (!next) return new Response(JSON.stringify({ choices: [{ message: { content: 'Nothing to do.' } }] }), { status: 200 });
   const out = next(body);
   return out instanceof Response ? out : new Response(JSON.stringify(out), { status: 200 });
+};
+
+const fakeCluster = async (url: string, init?: RequestInit): Promise<Response> => {
+  if (url.endsWith('/auth/token/full')) {
+    const body = JSON.parse(String(init?.body)) as { username: string; password: string };
+    return body.password === 'right' ? new Response(JSON.stringify({ token: 'cluster-token' }), { status: 200 }) : new Response('{}', { status: 401 });
+  }
+  return new Response(JSON.stringify({ id: 'guid-42', name: 'jdoe', display_name: 'Jane Doe' }), { status: 200 });
 };
 
 let main: Running;
@@ -180,7 +190,7 @@ describe('sign in', () => {
   it('sets a hardened session cookie and identifies the user', async () => {
     const { res, cookie } = await login(ALICE);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ user: { id: 'u-alice', name: 'alice', displayName: 'Alice' } });
+    expect(await res.json()).toEqual({ user: { id: 'u-alice', name: 'alice', displayName: 'Alice', cluster: null } });
     const raw = res.headers.get('set-cookie') ?? '';
     expect(raw).toContain('HttpOnly');
     expect(raw).toContain('SameSite=Strict');
@@ -189,7 +199,36 @@ describe('sign in', () => {
 
     const me = await api('/api/me', {}, cookie);
     expect(me.status).toBe(200);
-    expect(await me.json()).toEqual({ user: { id: 'u-alice', name: 'alice', displayName: 'Alice' } });
+    expect(await me.json()).toEqual({ user: { id: 'u-alice', name: 'alice', displayName: 'Alice', cluster: null } });
+  });
+
+  it('signs in with cluster url, username and password', async () => {
+    const res = await api('/api/session', {
+      method: 'POST',
+      headers: { ...json, ...csrf },
+      body: JSON.stringify({ clusterUrl: 'my.thoughtspot.cloud', username: 'jdoe', password: 'right' })
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ user: { id: 'my.thoughtspot.cloud/guid-42', name: 'jdoe', displayName: 'Jane Doe', cluster: 'my.thoughtspot.cloud' } });
+    const cookie = (res.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const me = await api('/api/me', {}, cookie);
+    expect(((await me.json()) as { user: { cluster: string } }).user.cluster).toBe('my.thoughtspot.cloud');
+
+    const wrong = await api('/api/session', {
+      method: 'POST',
+      headers: { ...json, ...csrf },
+      body: JSON.stringify({ clusterUrl: 'my.thoughtspot.cloud', username: 'jdoe', password: 'wrong' })
+    });
+    expect(wrong.status).toBe(401);
+    expect(await wrong.json()).toEqual({ error: 'invalid_credentials' });
+
+    const local = await api('/api/session', {
+      method: 'POST',
+      headers: { ...json, ...csrf },
+      body: JSON.stringify({ clusterUrl: 'localhost', username: 'jdoe', password: 'right' })
+    });
+    expect(local.status).toBe(400);
+    expect(await local.json()).toMatchObject({ error: 'invalid_cluster_url' });
   });
 
   it('signs out and invalidates the cookie', async () => {
@@ -264,7 +303,7 @@ describe('dev default user', () => {
     try {
       const me = await fetch(`${auto.base}/api/me`);
       expect(me.status).toBe(200);
-      expect(await me.json()).toEqual({ user: { id: 'u-bob', name: 'bob', displayName: 'Bob' } });
+      expect(await me.json()).toEqual({ user: { id: 'u-bob', name: 'bob', displayName: 'Bob', cluster: null } });
       const cookie = (me.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
       expect(cookie.startsWith('sc_session=')).toBe(true);
       const again = await fetch(`${auto.base}/api/me`, { headers: { Cookie: cookie } });

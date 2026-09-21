@@ -74,7 +74,7 @@ export function ProfileSheet() {
           </span>
           <div className="sheet__who">
             <strong>{user.displayName}</strong>
-            <span>{user.name}</span>
+            <span>{user.cluster ? `${user.name} · ${user.cluster}` : user.name}</span>
           </div>
           <button type="button" className="sheet__close" aria-label="Close" onClick={() => setOpen(false)}>
             ✕

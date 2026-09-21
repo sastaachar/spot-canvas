@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ApiError, fetchMe, signIn as apiSignIn, signOut as apiSignOut, type User } from './api';
+import { ApiError, fetchMe, signIn as apiSignIn, signOut as apiSignOut, type Credentials, type User } from './api';
 
 export type SessionStatus = 'loading' | 'anonymous' | 'signed-in';
 
@@ -8,7 +8,7 @@ interface SessionState {
   user: User | null;
   error: string | null;
   bootstrap(): Promise<void>;
-  signIn(token: string): Promise<boolean>;
+  signIn(credentials: Credentials): Promise<boolean>;
   signOut(): Promise<void>;
 }
 
@@ -30,9 +30,9 @@ export const useSession = create<SessionState>()((set) => ({
     }
   },
 
-  async signIn(token) {
+  async signIn(credentials) {
     try {
-      const user = await apiSignIn(token);
+      const user = await apiSignIn(credentials);
       set({ status: 'signed-in', user, error: null });
       return true;
     } catch (error) {

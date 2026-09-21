@@ -40,7 +40,7 @@ import { useToastStore } from './core/toasts';
 import { useChatStore } from './core/chat';
 import { useUiStore } from './core/ui';
 
-const user = { id: 'u1', name: 'alice', displayName: 'Alice' };
+const user = { id: 'u1', name: 'alice', displayName: 'Alice', cluster: 'my.thoughtspot.cloud' };
 const notePanel: PanelState = {
   iid: 'spotcanvas.note#1',
   pluginId: 'spotcanvas.note',
@@ -69,6 +69,7 @@ beforeEach(() => {
   });
   useUiStore.setState({ profileOpen: false, renamingGid: null });
   document.documentElement.removeAttribute('data-theme');
+  localStorage.clear();
   useToastStore.setState({ toasts: [] });
   useMenuStore.setState({ open: false });
   useSession.setState({ status: 'loading', user: null, error: null });
@@ -99,29 +100,41 @@ async function renderSignedIn() {
 }
 
 describe('session', () => {
-  it('asks for a token when there is no session, then loads the saved homepage', async () => {
+  it('asks for cluster, username and password when there is no session, then loads the saved homepage', async () => {
     api.fetchMe.mockResolvedValue(null);
     memory.value = serializeLayout({ [notePanel.iid]: notePanel });
+    localStorage.setItem('spot-canvas.last-cluster', 'remembered.thoughtspot.cloud');
     render(<App />);
 
-    const input = await screen.findByLabelText('ThoughtSpot token');
-    fireEvent.change(input, { target: { value: 'dev-alice-token' } });
-    fireEvent.submit(input.closest('form')!);
+    const cluster = (await screen.findByLabelText('Cluster URL')) as HTMLInputElement;
+    expect(cluster.value).toBe('remembered.thoughtspot.cloud');
+    const submit = screen.getByRole('button', { name: 'Sign in' }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+    fireEvent.change(cluster, { target: { value: ' my.thoughtspot.cloud ' } });
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'jdoe' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'pw' } });
+    expect(submit.disabled).toBe(false);
+    fireEvent.submit(cluster.closest('form')!);
 
     const panel = await screen.findByRole('region', { name: 'Sticky note' });
-    expect(api.signIn).toHaveBeenCalledWith('dev-alice-token');
+    expect(api.signIn).toHaveBeenCalledWith({ clusterUrl: 'my.thoughtspot.cloud', username: 'jdoe', password: 'pw' });
+    expect(localStorage.getItem('spot-canvas.last-cluster')).toBe('my.thoughtspot.cloud');
     expect(shadowOf(panel).querySelector('textarea')!.value).toBe('saved earlier');
   });
 
-  it('shows the API error when a token is refused', async () => {
+  it('shows the API error when the cluster refuses the credentials and clears the password', async () => {
     api.fetchMe.mockResolvedValue(null);
     api.signIn.mockRejectedValue(new Error('offline'));
     render(<App />);
-    const input = await screen.findByLabelText('ThoughtSpot token');
-    fireEvent.change(input, { target: { value: 'bad' } });
-    fireEvent.submit(input.closest('form')!);
+    const cluster = await screen.findByLabelText('Cluster URL');
+    fireEvent.change(cluster, { target: { value: 'my.thoughtspot.cloud' } });
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'jdoe' } });
+    const password = screen.getByLabelText('Password') as HTMLInputElement;
+    fireEvent.change(password, { target: { value: 'bad' } });
+    fireEvent.submit(cluster.closest('form')!);
     expect((await screen.findByRole('alert')).textContent).toContain('not reachable');
-    expect((input as HTMLInputElement).value).toBe('');
+    expect(password.value).toBe('');
+    expect((screen.getByLabelText('Username') as HTMLInputElement).value).toBe('jdoe');
   });
 
   it('signs out from the profile sheet and clears the canvas', async () => {
@@ -134,7 +147,7 @@ describe('session', () => {
     expect(within(sheet).getByText('Alice')).toBeTruthy();
     fireEvent.click(within(sheet).getByRole('button', { name: 'Sign out' }));
 
-    await screen.findByLabelText('ThoughtSpot token');
+    await screen.findByLabelText('Cluster URL');
     expect(api.signOut).toHaveBeenCalled();
     expect(useCanvasStore.getState().panels).toEqual({});
     expect(memory.value).toContain('saved earlier');

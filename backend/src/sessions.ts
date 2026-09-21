@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import type { ClusterSession } from './auth.ts';
 import type { Identity } from './config.ts';
 
 export const SESSION_COOKIE = 'sc_session';
@@ -7,6 +8,7 @@ const MS_PER_SECOND = 1000;
 
 interface Session {
   identity: Identity;
+  cluster: ClusterSession | null;
   expiresAt: number;
 }
 
@@ -20,20 +22,28 @@ export class SessionStore {
     this.now = now;
   }
 
-  create(identity: Identity): string {
+  create(identity: Identity, cluster: ClusterSession | null = null): string {
     const sid = randomBytes(SESSION_ID_BYTES).toString('base64url');
-    this.sessions.set(sid, { identity, expiresAt: this.now() + this.ttlMs });
+    this.sessions.set(sid, { identity, cluster, expiresAt: this.now() + this.ttlMs });
     return sid;
   }
 
-  get(sid: string): Identity | null {
+  private live(sid: string): Session | null {
     const session = this.sessions.get(sid);
     if (!session) return null;
     if (session.expiresAt <= this.now()) {
       this.sessions.delete(sid);
       return null;
     }
-    return session.identity;
+    return session;
+  }
+
+  get(sid: string): Identity | null {
+    return this.live(sid)?.identity ?? null;
+  }
+
+  cluster(sid: string): ClusterSession | null {
+    return this.live(sid)?.cluster ?? null;
   }
 
   delete(sid: string): void {

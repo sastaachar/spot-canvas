@@ -1,5 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
-import { authenticatorFor, chain, devAuthenticator, thoughtSpotAuthenticator, tokensEqual, UpstreamError } from './auth.ts';
+import {
+  authenticatorFor,
+  chain,
+  ClusterUrlError,
+  devAuthenticator,
+  loginToCluster,
+  normaliseClusterUrl,
+  thoughtSpotAuthenticator,
+  tokensEqual,
+  UpstreamError
+} from './auth.ts';
 import type { Config, Identity } from './config.ts';
 
 const alice: Identity = { id: 'u1', name: 'alice', displayName: 'Alice' };
@@ -74,7 +84,8 @@ describe('chain and authenticatorFor', () => {
     dataDir: 'data',
     sessionTtlMs: 1000,
     cookieSecure: true,
-    gateway: null
+    gateway: null,
+    allowLocalClusters: false
   };
 
   it('returns the first match and null when nobody matches', async () => {
@@ -91,5 +102,59 @@ describe('chain and authenticatorFor', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
     expect((await auth.authenticate('remote-token'))?.name).toBe('remote');
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('normaliseClusterUrl', () => {
+  it('accepts https hosts with or without a scheme and strips paths', () => {
+    expect(normaliseClusterUrl('my.thoughtspot.cloud', false)).toBe('https://my.thoughtspot.cloud');
+    expect(normaliseClusterUrl(' https://my.thoughtspot.cloud/#/home ', false)).toBe('https://my.thoughtspot.cloud');
+    expect(normaliseClusterUrl('https://ts.example:8443', false)).toBe('https://ts.example:8443');
+  });
+
+  it('rejects blanks, garbage, http and local addresses unless allowed', () => {
+    expect(() => normaliseClusterUrl('  ', false)).toThrow(ClusterUrlError);
+    expect(() => normaliseClusterUrl('http://[::1', false)).toThrow(/not valid/);
+    expect(() => normaliseClusterUrl('http://ts.example', false)).toThrow(/https/);
+    expect(() => normaliseClusterUrl('localhost:8443', false)).toThrow(/public https/);
+    expect(() => normaliseClusterUrl('10.0.0.4', false)).toThrow(/public https/);
+    expect(normaliseClusterUrl('http://localhost:8443', true)).toBe('http://localhost:8443');
+  });
+});
+
+describe('loginToCluster', () => {
+  const creds = { clusterUrl: 'ts.example.com', username: 'jdoe', password: 'pw' };
+
+  it('mints a token with the credentials, resolves the user, and scopes the id to the cluster', async () => {
+    const fetchImpl = vi.fn(async (url: string) =>
+      url.endsWith('/auth/token/full') ? response(200, { token: 'tok-123' }) : response(200, { id: 'guid-1', name: 'jdoe', display_name: 'J. Doe' })
+    );
+    const login = await loginToCluster(creds, false, fetchImpl);
+    expect(login?.identity).toEqual({ id: 'ts.example.com/guid-1', name: 'jdoe', displayName: 'J. Doe', cluster: 'ts.example.com' });
+    expect(login?.cluster).toMatchObject({ host: 'https://ts.example.com', token: 'tok-123' });
+    const [tokenUrl, tokenInit] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(tokenUrl).toBe('https://ts.example.com/api/rest/2.0/auth/token/full');
+    expect(JSON.parse(String(tokenInit.body))).toMatchObject({ username: 'jdoe', password: 'pw' });
+    const [userUrl, userInit] = fetchImpl.mock.calls[1] as unknown as [string, RequestInit];
+    expect(userUrl).toBe('https://ts.example.com/api/rest/2.0/auth/session/user');
+    expect((userInit.headers as Record<string, string>)['Authorization']).toBe('Bearer tok-123');
+  });
+
+  it('returns null for rejected credentials and raises UpstreamError for cluster trouble', async () => {
+    expect(await loginToCluster(creds, false, async () => response(401, {}))).toBeNull();
+    expect(await loginToCluster(creds, false, async () => response(400, {}))).toBeNull();
+    const userRejected = vi.fn(async (url: string) => (url.endsWith('/auth/token/full') ? response(200, { token: 't' }) : response(401, {})));
+    expect(await loginToCluster(creds, false, userRejected)).toBeNull();
+    for (const bad of [
+      async () => {
+        throw new Error('ECONNREFUSED');
+      },
+      async () => response(500, {}),
+      async () => response(200, 'not json'),
+      async () => response(200, { nope: 1 })
+    ]) {
+      await expect(loginToCluster(creds, false, bad)).rejects.toBeInstanceOf(UpstreamError);
+    }
+    await expect(loginToCluster({ ...creds, clusterUrl: 'http://x' }, false)).rejects.toBeInstanceOf(ClusterUrlError);
   });
 });

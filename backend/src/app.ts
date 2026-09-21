@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
 import { AgentError, runChat, type ChatMessage } from './agent/chat.ts';
 import { CataloguePluginSchema } from './agent/tools.ts';
-import { UpstreamError, type Authenticator, type FetchLike } from './auth.ts';
+import { ClusterUrlError, loginToCluster, UpstreamError, type Authenticator, type ClusterSession, type FetchLike } from './auth.ts';
 import type { Config, Identity } from './config.ts';
 import { applyBaseHeaders, clientIp, HttpError, readJson, sendEmpty, sendJson } from './http.ts';
 import { LayoutSchema, type Layout, type LayoutStore } from './layouts.ts';
@@ -15,7 +15,16 @@ export const CSRF_VALUE = 'SpotCanvas';
 const MAX_TOKEN_LENGTH = 4096;
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-const LoginSchema = z.object({ token: z.string().min(1).max(MAX_TOKEN_LENGTH) });
+const MAX_CREDENTIAL_LENGTH = 512;
+
+const LoginSchema = z.union([
+  z.object({ token: z.string().min(1).max(MAX_TOKEN_LENGTH) }),
+  z.object({
+    clusterUrl: z.string().min(1).max(MAX_CREDENTIAL_LENGTH),
+    username: z.string().min(1).max(MAX_CREDENTIAL_LENGTH),
+    password: z.string().min(1).max(MAX_CREDENTIAL_LENGTH)
+  })
+]);
 
 const MAX_CHAT_MESSAGE = 4000;
 const MAX_CHAT_HISTORY = 20;
@@ -43,6 +52,7 @@ export interface AppDeps {
   loginLimiter: RateLimiter;
   chatLimiter: RateLimiter;
   gatewayFetch?: FetchLike;
+  clusterFetch?: FetchLike;
   log?: Logger;
 }
 
@@ -51,7 +61,8 @@ export type Handler = (req: IncomingMessage, res: ServerResponse) => Promise<voi
 const userView = (identity: Identity) => ({
   id: identity.id,
   name: identity.name,
-  displayName: identity.displayName
+  displayName: identity.displayName,
+  cluster: identity.cluster ?? null
 });
 
 export function createApp(deps: AppDeps): Handler {
@@ -75,8 +86,8 @@ export function createApp(deps: AppDeps): Handler {
     return { sid, identity: deps.sessions.get(sid) };
   };
 
-  const startSession = (res: ServerResponse, identity: Identity): void => {
-    const sid = deps.sessions.create(identity);
+  const startSession = (res: ServerResponse, identity: Identity, cluster: ClusterSession | null = null): void => {
+    const sid = deps.sessions.create(identity, cluster);
     res.setHeader('Set-Cookie', sessionCookie(sid, config.sessionTtlMs, config.cookieSecure));
   };
 
@@ -109,10 +120,16 @@ export function createApp(deps: AppDeps): Handler {
         if (!deps.loginLimiter.allow(clientIp(req))) throw new HttpError(429, 'rate_limited');
         const body = LoginSchema.safeParse(await readJson(req));
         if (!body.success) throw new HttpError(400, 'invalid_body');
-        const identity = await deps.auth.authenticate(body.data.token);
-        if (!identity) throw new HttpError(401, 'invalid_token');
-        startSession(res, identity);
-        return sendJson(res, 200, { user: userView(identity) });
+        if ('token' in body.data) {
+          const identity = await deps.auth.authenticate(body.data.token);
+          if (!identity) throw new HttpError(401, 'invalid_token');
+          startSession(res, identity);
+          return sendJson(res, 200, { user: userView(identity) });
+        }
+        const login = await loginToCluster(body.data, config.allowLocalClusters, deps.clusterFetch);
+        if (!login) throw new HttpError(401, 'invalid_credentials');
+        startSession(res, login.identity, login.cluster);
+        return sendJson(res, 200, { user: userView(login.identity) });
       }
 
       if (pathname === '/api/session' && method === 'DELETE') {
@@ -168,6 +185,7 @@ export function createApp(deps: AppDeps): Handler {
       throw new HttpError(404, 'not_found');
     } catch (error) {
       if (error instanceof HttpError) return sendJson(res, error.status, { error: error.code });
+      if (error instanceof ClusterUrlError) return sendJson(res, 400, { error: 'invalid_cluster_url', message: error.message });
       if (error instanceof UpstreamError) {
         log('authentication upstream failed', error);
         return sendJson(res, 502, { error: 'auth_unavailable' });

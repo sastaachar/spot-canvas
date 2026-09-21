@@ -44,13 +44,15 @@ describe('session store', () => {
   });
 
   it('signs in, surfaces API messages on failure, and signs out even if the server call fails', async () => {
+    const creds = { clusterUrl: 'my.thoughtspot.cloud', username: 'alice', password: 'pw' };
     api.signIn.mockResolvedValueOnce(user);
-    expect(await useSession.getState().signIn('tok')).toBe(true);
+    expect(await useSession.getState().signIn(creds)).toBe(true);
+    expect(api.signIn).toHaveBeenCalledWith(creds);
     expect(useSession.getState().status).toBe('signed-in');
 
-    api.signIn.mockRejectedValueOnce(new ApiError(401, 'That token was not accepted.'));
-    expect(await useSession.getState().signIn('bad')).toBe(false);
-    expect(useSession.getState()).toMatchObject({ status: 'anonymous', error: 'That token was not accepted.' });
+    api.signIn.mockRejectedValueOnce(new ApiError(401, 'That username or password was not accepted by the cluster.'));
+    expect(await useSession.getState().signIn(creds)).toBe(false);
+    expect(useSession.getState()).toMatchObject({ status: 'anonymous', error: 'That username or password was not accepted by the cluster.' });
 
     api.signOut.mockRejectedValueOnce(new Error('offline'));
     await useSession.getState().signOut();

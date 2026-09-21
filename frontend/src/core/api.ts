@@ -4,6 +4,13 @@ export interface User {
   id: string;
   name: string;
   displayName: string;
+  cluster?: string | null;
+}
+
+export interface Credentials {
+  clusterUrl: string;
+  username: string;
+  password: string;
 }
 
 export class ApiError extends Error {
@@ -36,10 +43,15 @@ export async function fetchMe(): Promise<User | null> {
   return userOf(res);
 }
 
-export async function signIn(token: string): Promise<User> {
-  const res = await call('/session', { method: 'POST', body: JSON.stringify({ token }) });
-  if (res.status === 401) throw new ApiError(res.status, 'That token was not accepted.');
+export async function signIn(credentials: Credentials): Promise<User> {
+  const res = await call('/session', { method: 'POST', body: JSON.stringify(credentials) });
+  if (res.status === 401) throw new ApiError(res.status, 'That username or password was not accepted by the cluster.');
+  if (res.status === 400) {
+    const body = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new ApiError(res.status, body.message ?? 'Check the cluster URL.');
+  }
   if (res.status === 429) throw new ApiError(res.status, 'Too many attempts. Wait a minute and try again.');
+  if (res.status === 502) throw new ApiError(res.status, 'The cluster could not be reached.');
   if (!res.ok) throw new ApiError(res.status, 'Sign-in failed.');
   return userOf(res);
 }

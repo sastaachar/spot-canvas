@@ -25,11 +25,13 @@ pnpm typecheck
 pnpm build
 ```
 
-With `DEV_DEFAULT_USER=alice` in `backend/.env` there is no sign-in step: the homepage opens as Alice. Remove that line to get the token sign-in screen instead; the tokens in `DEV_USERS` (`dev-alice-token`, `dev-bob-token`) are separate users with separate homepages. To sign real users in, set `THOUGHTSPOT_HOST` in `backend/.env`; a token presented at sign-in is then validated against that instance's `auth/session/user` endpoint.
+The sign-in page asks for a **ThoughtSpot cluster URL, username and password**. The backend exchanges them for a cluster token (`POST /api/rest/2.0/auth/token/full`), resolves the user (`auth/session/user`), and keeps the cluster token in the server-side session so Spotter can call the cluster on the user's behalf. The browser only ever holds the HttpOnly session cookie. Users are keyed by cluster and user id, so the same person on two clusters gets two homepages.
+
+For local work without a cluster, uncomment `DEV_DEFAULT_USER=alice` in `backend/.env` and the homepage opens as Alice with no sign-in page. `DEV_USERS` tokens still work through `POST /api/session { token }`.
 
 ## How it fits together
 
-- The frontend never talks to ThoughtSpot for identity. It posts the token to the backend, which validates it and answers with an HttpOnly, SameSite=Strict session cookie.
+- The frontend never talks to ThoughtSpot for identity. It posts the cluster URL and credentials to the backend, which signs in to the cluster and answers with an HttpOnly, SameSite=Strict session cookie. Cluster URLs must be public https addresses; local ones are refused unless `ALLOW_LOCAL_CLUSTERS=true`.
 - Every mutating request carries an `X-Requested-With` header; the backend rejects requests without it, and only accepts cross-origin calls from `FRONTEND_ORIGIN`.
 - The layout is loaded on sign-in and saved (debounced) after every change. The backend validates the document shape and stores it under a hash of the user id, never the raw id.
 - Sign-in attempts and overall traffic are rate limited per address. All responses are `no-store`.
@@ -39,7 +41,7 @@ With `DEV_DEFAULT_USER=alice` in `backend/.env` there is no sign-in step: the ho
 | Route | Auth | Purpose |
 |---|---|---|
 | `GET /api/health` | none | liveness |
-| `POST /api/session` `{ token }` | none | validate the token, start a session |
+| `POST /api/session` `{ clusterUrl, username, password }` or `{ token }` | none | sign in to the cluster (or validate a token), start a session |
 | `DELETE /api/session` | cookie | end the session |
 | `GET /api/me` | cookie | current user |
 | `GET /api/layout` | cookie | this user's layout, `204` when none |
