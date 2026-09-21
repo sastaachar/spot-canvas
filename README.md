@@ -9,10 +9,10 @@ frontend/plugins/*  first-party plugins (workflow, embed, thoughtspot-chart, not
 backend/            Node API: signs a user in, stores that user's layout (one JSON document per user)
 ```
 
-`plugins/thoughtspot-chart` renders a saved ThoughtSpot Answer's chart with
+`frontend/plugins/thoughtspot-chart` renders a saved ThoughtSpot Answer's chart with
 ThoughtSpot's own chart engine from a single API call — no ThoughtSpot app in the
 page. It needs the chart bundle under `frontend/public/valkyrie/` and the dev
-proxy credentials described in [its README](plugins/thoughtspot-chart/README.md).
+proxy credentials described in [its README](frontend/plugins/thoughtspot-chart/README.md).
 
 ## Run
 
