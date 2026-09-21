@@ -8,35 +8,42 @@ importers:
 
   .: {}
 
-  apps/desktop:
+  backend:
+    dependencies:
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       '@types/node':
-        specifier: 26.6.2
-        version: 26.6.2
-      electron:
-        specifier: 44.4.3
-        version: 44.4.3
+        specifier: '22'
+        version: 22.20.4
+      '@vitest/coverage-v8':
+        specifier: 5.0.1
+        version: 5.0.1(vitest@5.0.1)
       typescript:
         specifier: 7.0.2
         version: 7.0.2
+      vitest:
+        specifier: 5.0.1
+        version: 5.0.1(@types/node@22.20.4)(@vitest/coverage-v8@5.0.1)(vite@8.3.0)
 
-  apps/web:
+  frontend:
     dependencies:
       '@spot-canvas/plugin-embed':
         specifier: workspace:*
-        version: link:../../plugins/embed
+        version: link:plugins/embed
       '@spot-canvas/plugin-note':
         specifier: workspace:*
-        version: link:../../plugins/note
+        version: link:plugins/note
       '@spot-canvas/plugin-timer':
         specifier: workspace:*
-        version: link:../../plugins/timer
+        version: link:plugins/timer
       '@spot-canvas/plugin-workflow':
         specifier: workspace:*
-        version: link:../../plugins/workflow
+        version: link:plugins/workflow
       '@spot-canvas/sdk':
         specifier: workspace:*
-        version: link:../../packages/sdk
+        version: link:sdk
       react:
         specifier: 19.3.0
         version: 19.3.0
@@ -76,7 +83,7 @@ importers:
         version: 7.0.2
       vite:
         specifier: 8.3.0
-        version: 8.3.0
+        version: 8.3.0(@types/node@22.20.4)
       vitest:
         specifier: 5.0.1
         version: 5.0.1(@vitest/coverage-v8@5.0.1)(jsdom@30.1.0)(vite@8.3.0)
@@ -84,7 +91,47 @@ importers:
         specifier: 4.135.0
         version: 4.135.0
 
-  packages/sdk:
+  frontend/plugins/embed:
+    dependencies:
+      '@spot-canvas/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+    devDependencies:
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  frontend/plugins/note:
+    dependencies:
+      '@spot-canvas/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+    devDependencies:
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  frontend/plugins/timer:
+    dependencies:
+      '@spot-canvas/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+    devDependencies:
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  frontend/plugins/workflow:
+    dependencies:
+      '@spot-canvas/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+    devDependencies:
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  frontend/sdk:
     dependencies:
       zod:
         specifier: 4.6.5
@@ -96,46 +143,6 @@ importers:
       vitest:
         specifier: 5.0.1
         version: 5.0.1(@vitest/coverage-v8@5.0.1)(jsdom@30.1.0)(vite@8.3.0)
-
-  plugins/embed:
-    dependencies:
-      '@spot-canvas/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
-    devDependencies:
-      typescript:
-        specifier: 7.0.2
-        version: 7.0.2
-
-  plugins/note:
-    dependencies:
-      '@spot-canvas/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
-    devDependencies:
-      typescript:
-        specifier: 7.0.2
-        version: 7.0.2
-
-  plugins/timer:
-    dependencies:
-      '@spot-canvas/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
-    devDependencies:
-      typescript:
-        specifier: 7.0.2
-        version: 7.0.2
-
-  plugins/workflow:
-    dependencies:
-      '@spot-canvas/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
-    devDependencies:
-      typescript:
-        specifier: 7.0.2
-        version: 7.0.2
 
 packages:
 
@@ -334,27 +341,6 @@ packages:
   /@csstools/css-tokenizer@4.0.1:
     resolution: {integrity: sha512-bPlN9S9O1A0euCpEWE4qnvB5YDuyYVsUTrxSgmAM1Is0j4tICHoVyOVAXfWMP/kS9ZrjvyIXWV2PmomiAXXqOw==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/@csstools/css-tokenizer/-/css-tokenizer-4.0.1.tgz}
     engines: {node: '>=20.19.0'}
-    dev: true
-
-  /@electron-internal/extract-zip@1.0.5:
-    resolution: {integrity: sha512-+bqFCP98pLI0Tt0XQo1TmlXtwjWchISndDOxCkEcIuUgXWpBnLyRI+2DU+mesvnMMX6L1XDqYNA0lXNDHd/yiA==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/@electron-internal/extract-zip/-/extract-zip-1.0.5.tgz}
-    engines: {node: '>=22.12.0'}
-    dev: true
-
-  /@electron/get@5.1.0:
-    resolution: {integrity: sha512-3kSBtG8ObcTVfXanm5vVJ6UnBLEVmVsRk1M+vGqCuMBV+XLCbJYuWQful+yIy0GQDsSlK0kHEriEHn7SPk4EnA==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/@electron/get/-/get-5.1.0.tgz}
-    engines: {node: '>=22.12.0'}
-    dependencies:
-      debug: 4.4.3
-      env-paths: 3.0.0
-      graceful-fs: 4.2.11
-      progress: 2.0.3
-      semver: 7.8.5
-      sumchecker: 3.0.1
-    optionalDependencies:
-      undici: 7.29.1
-    transitivePeerDependencies:
-      - supports-color
     dev: true
 
   /@emnapi/runtime@1.11.3:
@@ -1109,16 +1095,10 @@ packages:
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/@types/estree/-/estree-1.0.9.tgz}
     dev: true
 
-  /@types/node@24.13.6:
-    resolution: {integrity: sha512-SGrw/h3KPFshy3OE6ZL53LMBG5vGQQ8/gIpiqz/kRZhPJ7HgwCEs8LBuNtWLa8dvGZVpSF7+Bf+c11HUrCb/yg==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/@types/node/-/node-24.13.6.tgz}
+  /@types/node@22.20.4:
+    resolution: {integrity: sha512-zJRE40jpHtKqE/C4fgHrAKQLJuSpzEnP9ff9Y7YtoR3Wd2pwqzlekDeEuUQXjRd+QCYnVnNwuJYmhdk9XV8gvA==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/@types/node/-/node-22.20.4.tgz}
     dependencies:
-      undici-types: 7.18.2
-    dev: true
-
-  /@types/node@26.6.2:
-    resolution: {integrity: sha512-X1P21scMv4zGKLYqjdGjaKa7COa0RKVYYZZN/NfvLQ1JegxFhdhpZG/Lyn8AXx6CDUavKAd11v6BvfpkDByK8g==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/@types/node/-/node-26.6.2.tgz}
-    dependencies:
-      undici-types: 8.9.0
+      undici-types: 6.21.0
     dev: true
 
   /@types/react-dom@19.3.0(@types/react@19.3.0):
@@ -1331,7 +1311,7 @@ packages:
         optional: true
     dependencies:
       '@rolldown/pluginutils': 1.0.1
-      vite: 8.3.0
+      vite: 8.3.0(@types/node@22.20.4)
     dev: true
 
   /@vitest/coverage-v8@5.0.1(vitest@5.0.1):
@@ -1351,7 +1331,7 @@ packages:
       obug: 2.2.1
       std-env: 4.2.0
       tinyrainbow: 3.1.1
-      vitest: 5.0.1(@vitest/coverage-v8@5.0.1)(jsdom@30.1.0)(vite@8.3.0)
+      vitest: 5.0.1(@types/node@22.20.4)(@vitest/coverage-v8@5.0.1)(vite@8.3.0)
     dev: true
 
   /@vitest/istanbul-lib-coverage@1.0.1:
@@ -1381,7 +1361,7 @@ packages:
       '@vitest/spy': 5.0.1
       estree-walker: 3.0.3
       magic-string: 1.4.1
-      vite: 8.3.0
+      vite: 8.3.0(@types/node@22.20.4)
     dev: true
 
   /@vitest/spy@5.0.1:
@@ -1458,18 +1438,6 @@ packages:
       - '@noble/hashes'
     dev: true
 
-  /debug@4.4.3:
-    resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/debug/-/debug-4.4.3.tgz}
-    engines: {node: '>=6.0'}
-    peerDependencies:
-      supports-color: '*'
-    peerDependenciesMeta:
-      supports-color:
-        optional: true
-    dependencies:
-      ms: 2.1.3
-    dev: true
-
   /decimal.js@10.6.0:
     resolution: {integrity: sha512-YpgQiITW3JXGntzdUmyUR1V812Hn8T1YVXhCu+wO3OpS4eU9l4YdD3qjyiKdV6mvV29zapkMeD390UVEf2lkUg==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/decimal.js/-/decimal.js-10.6.0.tgz}
     dev: true
@@ -1488,26 +1456,9 @@ packages:
     resolution: {integrity: sha512-X7BJ2yElsnOJ30pZF4uIIDfBEVgF4XEBxL9Bxhy6dnrm5hkzqmsWHGTiHqRiITNhMyFLyAiWndIJP7Z1NTteDg==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/dom-accessibility-api/-/dom-accessibility-api-0.5.16.tgz}
     dev: true
 
-  /electron@44.4.3:
-    resolution: {integrity: sha512-LTpSFTB40qVCXIX5xMo+cgHI/Jjkbjw7VpB26PccEbroqOn72LBukeaDwPVo1fBYzSzs0c9iPuAucFCO7Tw81Q==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/electron/-/electron-44.4.3.tgz}
-    engines: {node: '>= 22.12.0'}
-    hasBin: true
-    dependencies:
-      '@electron-internal/extract-zip': 1.0.5
-      '@electron/get': 5.1.0
-      '@types/node': 24.13.6
-    transitivePeerDependencies:
-      - supports-color
-    dev: true
-
   /entities@8.1.0:
     resolution: {integrity: sha512-kxL7msIffSuh9aaFAMD7rxAIuTRMAHMeBtgHW2yUdWw732ZNh4MehkF2gdjvtdmikkaIP9bFDDJOPlsvm7avrA==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/entities/-/entities-8.1.0.tgz}
     engines: {node: '>=20.19.0'}
-    dev: true
-
-  /env-paths@3.0.0:
-    resolution: {integrity: sha512-dtJUTepzMW3Lm/NPxRf3wP4642UWhjL2sQxc+ym2YMj1m/H2zDNQOlezafzkHwn6sMstjHTwG6iQQsctDW/b1A==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/env-paths/-/env-paths-3.0.0.tgz}
-    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
     dev: true
 
   /error-stack-parser-es@1.0.5:
@@ -1582,10 +1533,6 @@ packages:
     requiresBuild: true
     dev: true
     optional: true
-
-  /graceful-fs@4.2.11:
-    resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/graceful-fs/-/graceful-fs-4.2.11.tgz}
-    dev: true
 
   /html-encoding-sniffer@6.0.0:
     resolution: {integrity: sha512-CV9TW3Y3f8/wT0BRFc1/KAVQ3TUHiXmaAb6VW9vtiMFf7SLoMd1PdAc4W3KFOFETBJUb90KatHqlsZMWV+R9Gg==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/html-encoding-sniffer/-/html-encoding-sniffer-6.0.0.tgz}
@@ -1808,10 +1755,6 @@ packages:
       - utf-8-validate
     dev: true
 
-  /ms@2.1.3:
-    resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/ms/-/ms-2.1.3.tgz}
-    dev: true
-
   /nanoid@3.3.19:
     resolution: {integrity: sha512-Y2tUNy4ouw6tq5oDSKeQYGOyhkUBhNOcGV/02KC+6kd9eDGqdZd++mjMiIDilrBYvjEnCYvVtsuHCuP+okSfug==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/nanoid/-/nanoid-3.3.19.tgz}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
@@ -1862,11 +1805,6 @@ packages:
       ansi-regex: 5.0.1
       ansi-styles: 5.2.0
       react-is: 17.0.2
-    dev: true
-
-  /progress@2.0.3:
-    resolution: {integrity: sha512-7PiHtLll5LdnKIMw100I+8xJXR5gW2QwWYkT6iJva0bXitZKa/XMrSbdmg3r2Xnaidz9Qumd0VPaMrZlF9V9sA==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/progress/-/progress-2.0.3.tgz}
-    engines: {node: '>=0.4.0'}
     dev: true
 
   /punycode@2.3.1:
@@ -1993,15 +1931,6 @@ packages:
     resolution: {integrity: sha512-oCUKSupKTHX53EyjDtuZQ64pjLJ6yYCtpmEw0goYxtjG9KpbRe8KAsl2tBUGU9DyMcJ0RwJ8GqJAFzMXcXW1Rw==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/std-env/-/std-env-4.2.0.tgz}
     dev: true
 
-  /sumchecker@3.0.1:
-    resolution: {integrity: sha512-MvjXzkz/BOfyVDkG0oFOtBxHX2u3gKbMHIF/dXblZsgD3BWOFLmHovIpZY7BykJdAjcqRCBi1WYBNdEC9yI7vg==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/sumchecker/-/sumchecker-3.0.1.tgz}
-    engines: {node: '>= 8.0'}
-    dependencies:
-      debug: 4.4.3
-    transitivePeerDependencies:
-      - supports-color
-    dev: true
-
   /supports-color@10.2.2:
     resolution: {integrity: sha512-SS+jx45GF1QjgEXQx4NJZV9ImqmO2NPz5FNsIHrsDjh2YsHnawpan7SNQ1o8NuhrbHZy9AZhIoCUiCeaW/C80g==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/supports-color/-/supports-color-10.2.2.tgz}
     engines: {node: '>=18'}
@@ -2088,25 +2017,14 @@ packages:
       '@typescript/typescript-win32-x64': 7.0.2
     dev: true
 
-  /undici-types@7.18.2:
-    resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/undici-types/-/undici-types-7.18.2.tgz}
-    dev: true
-
-  /undici-types@8.9.0:
-    resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/undici-types/-/undici-types-8.9.0.tgz}
+  /undici-types@6.21.0:
+    resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/undici-types/-/undici-types-6.21.0.tgz}
     dev: true
 
   /undici@7.29.0:
     resolution: {integrity: sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/undici/-/undici-7.29.0.tgz}
     engines: {node: '>=20.18.1'}
     dev: true
-
-  /undici@7.29.1:
-    resolution: {integrity: sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/undici/-/undici-7.29.1.tgz}
-    engines: {node: '>=20.18.1'}
-    requiresBuild: true
-    dev: true
-    optional: true
 
   /undici@8.10.2:
     resolution: {integrity: sha512-/y4/bH9YNU5hi9NIrpOuvGXFcxrj3CMrV+/AYpowAYTpHn8gX/XPFjNy766FPoYY0miQhdW977JFWKGNhBdwyQ==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/undici/-/undici-8.10.2.tgz}
@@ -2119,7 +2037,7 @@ packages:
       pathe: 2.0.3
     dev: true
 
-  /vite@8.3.0:
+  /vite@8.3.0(@types/node@22.20.4):
     resolution: {integrity: sha512-lhZBVvEHefgE+HQZC9O7EBJgCU/nVzFNl7vkS4RE0APtWLP02/8QVIkQtzBxPquh7lq5/78NHipTj7ODQ6XuyQ==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/vite/-/vite-8.3.0.tgz}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
@@ -2162,6 +2080,7 @@ packages:
       yaml:
         optional: true
     dependencies:
+      '@types/node': 22.20.4
       lightningcss: 1.33.0
       picomatch: 4.0.7
       postcss: 8.5.28
@@ -2169,6 +2088,67 @@ packages:
       tinyglobby: 0.2.17
     optionalDependencies:
       fsevents: 2.3.3
+    dev: true
+
+  /vitest@5.0.1(@types/node@22.20.4)(@vitest/coverage-v8@5.0.1)(vite@8.3.0):
+    resolution: {integrity: sha512-iA95lQbKEkvrtTkdAgnWbXfbipWiiWe/hDl2P5tMi6WFwD76G0NxXAGp/M9EOcYupeGJRr6wppMc7CoA41TQjg==, tarball: https://jfrog-colo.corp.thoughtspot.com/artifactory/api/npm/npm-virtual/vitest/-/vitest-5.0.1.tgz}
+    engines: {node: ^22.12.0 || ^24.0.0 || >=26.0.0}
+    hasBin: true
+    peerDependencies:
+      '@edge-runtime/vm': '*'
+      '@opentelemetry/api': ^1.9.0
+      '@types/node': ^22.0.0 || >=24.0.0
+      '@vitest/browser-playwright': 5.0.1
+      '@vitest/browser-preview': 5.0.1
+      '@vitest/browser-webdriverio': ^5.0.0-beta.5 || >=5.0.0
+      '@vitest/coverage-istanbul': 5.0.1
+      '@vitest/coverage-v8': 5.0.1
+      '@vitest/ui': 5.0.1
+      happy-dom: '*'
+      jsdom: '*'
+      vite: ^6.4.0 || ^7.0.0 || ^8.0.0
+    peerDependenciesMeta:
+      '@edge-runtime/vm':
+        optional: true
+      '@opentelemetry/api':
+        optional: true
+      '@types/node':
+        optional: true
+      '@vitest/browser-playwright':
+        optional: true
+      '@vitest/browser-preview':
+        optional: true
+      '@vitest/browser-webdriverio':
+        optional: true
+      '@vitest/coverage-istanbul':
+        optional: true
+      '@vitest/coverage-v8':
+        optional: true
+      '@vitest/ui':
+        optional: true
+      happy-dom:
+        optional: true
+      jsdom:
+        optional: true
+    dependencies:
+      '@types/chai': 5.2.3
+      '@types/node': 22.20.4
+      '@vitest/coverage-v8': 5.0.1(vitest@5.0.1)
+      '@vitest/mocker': 5.0.1(vite@8.3.0)
+      chai: 6.2.2
+      es-module-lexer: 2.3.2
+      expect-type: 1.4.0
+      magic-string: 1.4.1
+      obug: 2.2.1
+      picomatch: 4.0.7
+      std-env: 4.2.0
+      tinybench: 6.1.4
+      tinyexec: 1.3.0
+      tinyglobby: 0.2.17
+      vite: 8.3.0(@types/node@22.20.4)
+      why-is-node-running: 2.3.0
+    transitivePeerDependencies:
+      - msw
     dev: true
 
   /vitest@5.0.1(@vitest/coverage-v8@5.0.1)(jsdom@30.1.0)(vite@8.3.0):
@@ -2226,7 +2206,7 @@ packages:
       tinybench: 6.1.4
       tinyexec: 1.3.0
       tinyglobby: 0.2.17
-      vite: 8.3.0
+      vite: 8.3.0(@types/node@22.20.4)
       why-is-node-running: 2.3.0
     transitivePeerDependencies:
       - msw

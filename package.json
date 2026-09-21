@@ -4,8 +4,9 @@
   "private": true,
   "packageManager": "pnpm@8.10.5",
   "scripts": {
-    "dev": "pnpm --filter @spot-canvas/web dev",
-    "desktop": "pnpm --filter @spot-canvas/desktop dev",
+    "dev": "pnpm -r --parallel --filter @spot-canvas/frontend --filter @spot-canvas/backend dev",
+    "dev:frontend": "pnpm --filter @spot-canvas/frontend dev",
+    "dev:backend": "pnpm --filter @spot-canvas/backend dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test"

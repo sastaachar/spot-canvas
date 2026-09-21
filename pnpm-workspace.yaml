@@ -1,4 +1,5 @@
 packages:
-  - packages/*
-  - plugins/*
-  - apps/*
+  - frontend
+  - frontend/sdk
+  - frontend/plugins/*
+  - backend
