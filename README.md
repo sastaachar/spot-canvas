@@ -5,9 +5,14 @@ A personal ThoughtSpot homepage. Every user gets a blank canvas and arranges plu
 ```
 frontend/           the homepage: Vite + React + Zustand, one canvas, right-click to add or remove plugins
 frontend/sdk        plugin contract: manifest schema, PluginApi types, definePlugin()
-frontend/plugins/*  first-party plugins (workflow, embed, note, timer), vanilla TS against the SDK
+frontend/plugins/*  first-party plugins (workflow, embed, thoughtspot-chart, note, timer), vanilla TS against the SDK
 backend/            Node API: signs a user in, stores that user's layout (one JSON document per user)
 ```
+
+`plugins/thoughtspot-chart` renders a saved ThoughtSpot Answer's chart with
+ThoughtSpot's own chart engine from a single API call — no ThoughtSpot app in the
+page. It needs the chart bundle under `apps/web/public/valkyrie/` and the dev
+proxy credentials described in [its README](plugins/thoughtspot-chart/README.md).
 
 ## Run
 
