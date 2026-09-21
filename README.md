@@ -11,7 +11,7 @@ backend/            Node API: signs a user in, stores that user's layout (one JS
 
 `plugins/thoughtspot-chart` renders a saved ThoughtSpot Answer's chart with
 ThoughtSpot's own chart engine from a single API call — no ThoughtSpot app in the
-page. It needs the chart bundle under `apps/web/public/valkyrie/` and the dev
+page. It needs the chart bundle under `frontend/public/valkyrie/` and the dev
 proxy credentials described in [its README](plugins/thoughtspot-chart/README.md).
 
 ## Run
