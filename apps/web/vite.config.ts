@@ -23,8 +23,7 @@ function readDevVars(): Record<string, string> {
 }
 
 /** Mints a trusted-auth bearer token (POST auth/token/full), cached for TOKEN_TTL_MS. */
-function tokenMinter(): () => Promise<string> {
-  const vars = readDevVars();
+function tokenMinter(vars: Record<string, string>): () => Promise<string> {
   const caPath = path.join(path.dirname(DEV_VARS), '.cluster-ca.pem');
   const ca = fs.existsSync(caPath) ? fs.readFileSync(caPath, 'utf8') : undefined;
   let token = vars.TS_TOKEN ?? '';
@@ -62,13 +61,23 @@ function tokenMinter(): () => Promise<string> {
     });
 }
 
-/** Attaches the minted token to requests before the proxy forwards them. */
+/**
+ * Dev glue for the ThoughtSpot chart plugin: tells it which cluster the
+ * credentials belong to (GET /thoughtspot/config) and attaches the minted token
+ * to /prism requests before the proxy forwards them.
+ */
 function thoughtspotTokenPlugin(): Plugin {
-  const getToken = tokenMinter();
+  const vars = readDevVars();
+  const getToken = tokenMinter(vars);
   return {
     name: 'thoughtspot-dev-token',
     configureServer(server) {
-      server.middlewares.use(async (req, _res, next) => {
+      server.middlewares.use(async (req, res, next) => {
+        if (req.url === '/thoughtspot/config') {
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ tsHost: vars.TS_HOST ?? '' }));
+          return;
+        }
         if (req.url?.startsWith('/prism')) {
           try {
             (req as { tsToken?: string }).tsToken = await getToken();

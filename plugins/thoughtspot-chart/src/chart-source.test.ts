@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   buildRequest,
   bundleFolder,
+  editUrl,
+  fetchDiscoveredTsHost,
   parsePayload,
   projectRows,
+  resolveTsHost,
   toChartSource,
   type HostedChartModelPayload
 } from './chart-source';
@@ -45,6 +48,31 @@ describe('chart-source', () => {
     expect(source.rows).toEqual([{ a: 'fob', m: 7 }, { a: 'mail', m: 2 }]);
     expect(source.chartConfig).toEqual([{ key: 'column' }]);
     expect(() => toChartSource({ ...payload, chart_type: null })).toThrow('no chart');
+  });
+
+  it('resolves the ThoughtSpot host and builds the edit link', () => {
+    const local = new URL('http://localhost:5175/prism');
+    expect(resolveTsHost('https://ts.example.com/', local)).toBe('https://ts.example.com');
+    expect(resolveTsHost('', local)).toBe('');
+    // the site's TS_HOST wins over nothing, the user's override wins over the site
+    expect(resolveTsHost('', local, 'https://172.32.87.105:8443/')).toBe('https://172.32.87.105:8443');
+    expect(resolveTsHost('https://override', local, 'https://172.32.87.105:8443')).toBe('https://override');
+    expect(resolveTsHost('', new URL('https://cluster:8443/api/rest/2.0/metadata/answer/hosted-chart-model'))).toBe(
+      'https://cluster:8443'
+    );
+    expect(editUrl('https://ts.example.com', 'abc-123')).toBe('https://ts.example.com/#/insights/saved-answer/abc-123');
+    expect(editUrl('', 'abc-123')).toBeNull();
+    expect(editUrl('https://ts.example.com', '')).toBeNull();
+  });
+
+  it('discovers the site host from /thoughtspot/config and tolerates its absence', async () => {
+    const endpoint = new URL('http://localhost:5175/prism');
+    const ok = async () => new Response(JSON.stringify({ tsHost: 'https://172.32.87.105:8443' }));
+    expect(await fetchDiscoveredTsHost(ok, endpoint)).toBe('https://172.32.87.105:8443');
+    const missing = async () => new Response('not found', { status: 404 });
+    expect(await fetchDiscoveredTsHost(missing, endpoint)).toBe('');
+    const failing = async () => { throw new Error('offline'); };
+    expect(await fetchDiscoveredTsHost(failing, endpoint)).toBe('');
   });
 
   it('maps chart types to bundle folders and projects rows onto a query', () => {
