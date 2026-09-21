@@ -1,0 +1,27 @@
+.tb-btn {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--surface);
+}
+
+.tb-btn--primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+
+.tb-btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.tb-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

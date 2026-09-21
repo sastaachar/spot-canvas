@@ -1,0 +1,141 @@
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { createPluginApi, EventBus } from '../core/host';
+import { hostKind } from '../core/hostKind';
+import { getPlugin } from '../core/registry';
+import { useCanvasStore, type PanelState } from '../core/store';
+import { currentTheme, onThemeChange } from '../core/theme';
+import { useToastStore } from '../core/toasts';
+import pluginBaseCss from '../styles/plugin-base.css?inline';
+
+const HEADER_HEIGHT = 30;
+const DRAG_KEEP_VISIBLE = 60;
+
+const bus = new EventBus((iid, phase, error) => {
+  console.warn(`[spot-canvas] plugin ${iid} threw in ${phase}`, error);
+});
+
+interface Props {
+  panel: PanelState;
+}
+
+type DragMode = 'move' | 'resize';
+
+function mountRoot(host: HTMLElement): ShadowRoot {
+  const root = host.shadowRoot ?? host.attachShadow({ mode: 'open' });
+  root.replaceChildren();
+  const base = document.createElement('style');
+  base.textContent = pluginBaseCss;
+  root.append(base);
+  return root;
+}
+
+export function Panel({ panel }: Props) {
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [failed, setFailed] = useState(false);
+  const plugin = getPlugin(panel.pluginId);
+  const { removePanel, movePanel, resizePanel, focusPanel } = useCanvasStore.getState();
+
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!plugin || !body) return;
+    const store = useCanvasStore.getState();
+    const root = mountRoot(body);
+    const host = document.createElement('div');
+    host.className = 'plugin-host';
+    host.style.height = '100%';
+    root.append(host);
+
+    const handle = createPluginApi(panel.iid, plugin.manifest, {
+      hostKind: hostKind(),
+      bus,
+      styleRoot: root,
+      getData: (iid) => store.panels[iid]?.data ?? null,
+      setData: store.setPanelData,
+      resize: store.resizePanel,
+      close: store.removePanel,
+      setTitle: store.setPanelTitle,
+      notify: useToastStore.getState().push,
+      theme: currentTheme,
+      onThemeChange
+    });
+    let unmount: (() => void) | void;
+    try {
+      unmount = plugin.mount(host, handle.api);
+    } catch (error) {
+      console.warn(`[spot-canvas] plugin ${panel.iid} failed to mount`, error);
+      setFailed(true);
+    }
+    return () => {
+      if (typeof unmount === 'function') {
+        try {
+          unmount();
+        } catch {
+          // the panel is going away regardless
+        }
+      }
+      handle.dispose();
+      root.replaceChildren();
+    };
+  }, [panel.iid, plugin]);
+
+  const startDrag = (mode: DragMode) => (e: ReactPointerEvent<HTMLElement>) => {
+    if (e.button !== 0) return;
+    if (mode === 'move' && (e.target as HTMLElement).closest('button')) return;
+    e.preventDefault();
+    focusPanel(panel.iid);
+    const target = e.currentTarget;
+    const canvas = target.closest('.canvas') as HTMLElement | null;
+    const bounds =
+      canvas && canvas.clientWidth > 0 ? { w: canvas.clientWidth, h: canvas.clientHeight } : { w: Infinity, h: Infinity };
+    const start = { x: e.clientX, y: e.clientY, px: panel.x, py: panel.y, pw: panel.w, ph: panel.h };
+    target.setPointerCapture(e.pointerId);
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - start.x;
+      const dy = ev.clientY - start.y;
+      if (mode === 'move') {
+        movePanel(
+          panel.iid,
+          Math.min(bounds.w - DRAG_KEEP_VISIBLE, start.px + dx),
+          Math.min(bounds.h - HEADER_HEIGHT, start.py + dy)
+        );
+      } else {
+        resizePanel(panel.iid, Math.min(bounds.w - start.px, start.pw + dx), Math.min(bounds.h - start.py, start.ph + dy));
+      }
+    };
+    const onUp = () => {
+      target.removeEventListener('pointermove', onMove);
+      target.removeEventListener('pointerup', onUp);
+      target.removeEventListener('pointercancel', onUp);
+    };
+    target.addEventListener('pointermove', onMove);
+    target.addEventListener('pointerup', onUp);
+    target.addEventListener('pointercancel', onUp);
+  };
+
+  const name = panel.title ?? plugin?.manifest.name ?? panel.pluginId;
+
+  return (
+    <section
+      className="panel"
+      aria-label={name}
+      style={{ left: panel.x, top: panel.y, width: panel.w, height: panel.h, zIndex: panel.z }}
+      onPointerDown={() => focusPanel(panel.iid)}
+    >
+      <header className="panel__head" onPointerDown={startDrag('move')}>
+        <span className="panel__kind">{plugin?.manifest.kind ?? 'missing'}</span>
+        <span className="panel__name">{name}</span>
+        <button type="button" aria-label={`Close ${name}`} onClick={() => removePanel(panel.iid)}>
+          ✕
+        </button>
+      </header>
+      <div className="panel__body" ref={bodyRef} hidden={failed || !plugin} />
+      {(failed || !plugin) && (
+        <p className="panel__error">
+          {plugin ? 'This plugin failed to start. Remove it and add it again.' : 'This plugin is no longer installed.'}
+        </p>
+      )}
+      <div className="panel__grip" aria-hidden="true" onPointerDown={startDrag('resize')} />
+    </section>
+  );
+}
