@@ -5,7 +5,7 @@ A personal ThoughtSpot homepage. Every user gets a blank canvas and arranges plu
 ```
 frontend/           the homepage: Vite + React + Zustand, one canvas, right-click to add or remove plugins
 frontend/sdk        plugin contract: manifest schema, PluginApi types, definePlugin()
-frontend/plugins/*  first-party plugins (workflow, embed, thoughtspot-chart, note, timer), vanilla TS against the SDK
+frontend/plugins/*  first-party plugins (thoughtspot-chart, embed, note, workflow, links, timer), vanilla TS against the SDK
 backend/            Node API: signs a user in, stores that user's layout (one JSON document per user)
 ```
 
@@ -94,12 +94,20 @@ Each panel mounts inside its own shadow root, so plugin CSS cannot leak out and 
 
 Load a plugin you are developing from the canvas menu: right-click, "Load plugin from URL…", and point it at an `https://` ES module.
 
-## Right-click menu
+## The page
+
+- **Canvas.** Flat ThoughtSpot-blue surface. Panels are plugins; drag by the header, resize from the corner.
+- **Groups.** Right-click → *New group here* draws a tinted rectangle with a title. Drop a panel inside and it joins the group; drag the group and its panels move with it. Rename by double-clicking the title; colour, ungroup or remove from the group's menu.
+- **Profile** (avatar, top right). Who you are, light / dark / system theme (saved with your layout), every suite with its setup state, every plugin and how many are on the page, sign out.
+- **Chat bar** (bottom). Talks to Spotter. The agent that edits the page is the next piece; today it acknowledges the message.
+
+### Right-click menu
 
 Everything on the homepage is driven from the context menu; there is no toolbar.
 
-- **Canvas:** *Add plugin ▸* (standalone plugins first, then one group per suite; the panel lands where you clicked), *Suites ▸* (each suite's settings, marked `configured` or `needs setup`), *Load plugin from URL…*, *Clear homepage*, *Sign out*.
-- **Panel header:** *Bring to front*, the owning suite's *settings…*, *Remove*.
+- **Canvas:** *Add plugin ▸* (standalone plugins first, then one group per suite; the panel lands where you clicked), *New group here*, *Suites ▸* (each suite's settings, marked `configured` or `needs setup`), *Load plugin from URL…*, *Clear homepage*, *Profile & appearance…*.
+- **Panel header:** *Bring to front*, *Group ▸* (when groups exist), the owning suite's *settings…*, *Remove*.
+- **Group title:** *Rename*, *Colour ▸*, *Ungroup* (keeps panels), *Remove group and its panels*.
 - Right-clicking inside a plugin's body keeps the browser's own menu, so copy and paste still work.
 
 ## Suites

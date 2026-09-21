@@ -12,7 +12,33 @@ export interface PanelState {
   z: number;
   data: unknown;
   title?: string | null;
+  groupId?: string | null;
 }
+
+export const GROUP_COLORS = ['blue', 'amber', 'green', 'violet', 'slate'] as const;
+export type GroupColor = (typeof GROUP_COLORS)[number];
+
+export interface GroupState {
+  gid: string;
+  title: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  color: GroupColor;
+}
+
+export type ThemePreference = 'system' | 'light' | 'dark';
+
+export interface Preferences {
+  theme: ThemePreference;
+}
+
+export const DEFAULT_PREFERENCES: Preferences = { theme: 'system' };
+export const MIN_GROUP_WIDTH = 240;
+export const MIN_GROUP_HEIGHT = 160;
+const DEFAULT_GROUP_SIZE = { w: 520, h: 340 };
+const MAX_GROUP_TITLE = 60;
 
 export type DrawerTab = 'browse' | 'developer';
 
@@ -27,6 +53,9 @@ export type PanelPlacement = Partial<Pick<PanelState, 'x' | 'y' | 'w' | 'h' | 'd
 interface CanvasState {
   panels: Record<string, PanelState>;
   suites: Record<string, SuiteState>;
+  groups: Record<string, GroupState>;
+  preferences: Preferences;
+  gseq: number;
   seq: number;
   nextZ: number;
   drawerOpen: boolean;
@@ -39,9 +68,23 @@ interface CanvasState {
   setPanelData(iid: string, data: unknown): void;
   setPanelTitle(iid: string, title: string | null): void;
   clearPanels(): void;
+  addGroup(at?: Partial<Pick<GroupState, 'x' | 'y' | 'w' | 'h'>>, title?: string): string;
+  removeGroup(gid: string, withPanels?: boolean): void;
+  moveGroup(gid: string, x: number, y: number): void;
+  resizeGroup(gid: string, w: number, h: number): void;
+  renameGroup(gid: string, title: string): void;
+  recolorGroup(gid: string, color: GroupColor): void;
+  assignPanel(iid: string, gid: string | null): void;
+  settlePanel(iid: string): void;
+  setPreferences(patch: Partial<Preferences>): void;
   trackSuite(id: string, url: string | null): void;
   configureSuite(id: string, settings: SuiteSettings): void;
-  hydrate(panels: PanelState[], suites?: Record<string, SuiteState>): void;
+  hydrate(
+    panels: PanelState[],
+    suites?: Record<string, SuiteState>,
+    groups?: GroupState[],
+    preferences?: Partial<Preferences>
+  ): void;
   setDrawer(open: boolean, tab?: DrawerTab): void;
 }
 
@@ -51,6 +94,9 @@ const STAGGER = 28;
 export const useCanvasStore = create<CanvasState>()((set, get) => ({
   panels: {},
   suites: {},
+  groups: {},
+  preferences: DEFAULT_PREFERENCES,
+  gseq: 0,
   seq: 0,
   nextZ: 1,
   drawerOpen: false,
@@ -116,7 +162,87 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
   },
 
   clearPanels() {
-    set({ panels: {} });
+    set({ panels: {}, groups: {} });
+  },
+
+  addGroup(at = {}, title) {
+    const { gseq, groups } = get();
+    const gid = `group#${gseq + 1}`;
+    const count = Object.keys(groups).length;
+    const group: GroupState = {
+      gid,
+      title: (title ?? `Group ${count + 1}`).slice(0, MAX_GROUP_TITLE),
+      x: Math.max(0, at.x ?? ORIGIN.x + count * STAGGER),
+      y: Math.max(0, at.y ?? ORIGIN.y + count * STAGGER),
+      w: Math.max(MIN_GROUP_WIDTH, at.w ?? DEFAULT_GROUP_SIZE.w),
+      h: Math.max(MIN_GROUP_HEIGHT, at.h ?? DEFAULT_GROUP_SIZE.h),
+      color: GROUP_COLORS[count % GROUP_COLORS.length] ?? 'blue'
+    };
+    set({ groups: { ...groups, [gid]: group }, gseq: gseq + 1 });
+    return gid;
+  },
+
+  removeGroup(gid, withPanels = false) {
+    const { [gid]: _removed, ...groups } = get().groups;
+    const panels: Record<string, PanelState> = {};
+    for (const panel of Object.values(get().panels)) {
+      if (panel.groupId !== gid) panels[panel.iid] = panel;
+      else if (!withPanels) panels[panel.iid] = { ...panel, groupId: null };
+    }
+    set({ groups, panels });
+  },
+
+  moveGroup(gid, x, y) {
+    const group = get().groups[gid];
+    if (!group) return;
+    const nx = Math.max(0, x);
+    const ny = Math.max(0, y);
+    const dx = nx - group.x;
+    const dy = ny - group.y;
+    const panels = { ...get().panels };
+    for (const panel of Object.values(panels)) {
+      if (panel.groupId === gid) panels[panel.iid] = { ...panel, x: Math.max(0, panel.x + dx), y: Math.max(0, panel.y + dy) };
+    }
+    set({ groups: { ...get().groups, [gid]: { ...group, x: nx, y: ny } }, panels });
+  },
+
+  resizeGroup(gid, w, h) {
+    const group = get().groups[gid];
+    if (!group) return;
+    set({ groups: { ...get().groups, [gid]: { ...group, w: Math.max(MIN_GROUP_WIDTH, w), h: Math.max(MIN_GROUP_HEIGHT, h) } } });
+  },
+
+  renameGroup(gid, title) {
+    const group = get().groups[gid];
+    if (!group) return;
+    const clean = title.trim().slice(0, MAX_GROUP_TITLE);
+    set({ groups: { ...get().groups, [gid]: { ...group, title: clean || group.title } } });
+  },
+
+  recolorGroup(gid, color) {
+    const group = get().groups[gid];
+    if (!group) return;
+    set({ groups: { ...get().groups, [gid]: { ...group, color } } });
+  },
+
+  assignPanel(iid, gid) {
+    const panel = get().panels[iid];
+    if (!panel || (gid !== null && !get().groups[gid])) return;
+    if (panel.groupId !== undefined && panel.groupId === gid) return;
+    set({ panels: { ...get().panels, [iid]: { ...panel, groupId: gid } } });
+  },
+
+  settlePanel(iid) {
+    const panel = get().panels[iid];
+    if (!panel) return;
+    const cx = panel.x + panel.w / 2;
+    const cy = panel.y + panel.h / 2;
+    const home = Object.values(get().groups).find((g) => cx >= g.x && cx <= g.x + g.w && cy >= g.y && cy <= g.y + g.h);
+    get().assignPanel(iid, home?.gid ?? null);
+  },
+
+  setPreferences(patch) {
+    set({ preferences: { ...get().preferences, ...patch } });
   },
 
   trackSuite(id, url) {
@@ -134,17 +260,24 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
     });
   },
 
-  hydrate(list, suites = {}) {
+  hydrate(list, suites = {}, groupList = [], preferences = {}) {
     const panels: Record<string, PanelState> = {};
+    const groups: Record<string, GroupState> = {};
     let seq = 0;
+    let gseq = 0;
     let nextZ = 1;
+    for (const g of groupList) {
+      groups[g.gid] = g;
+      const n = Number(g.gid.split('#')[1]);
+      if (Number.isFinite(n)) gseq = Math.max(gseq, n);
+    }
     for (const p of list) {
-      panels[p.iid] = p;
+      panels[p.iid] = p.groupId && !groups[p.groupId] ? { ...p, groupId: null } : p;
       const n = Number(p.iid.split('#')[1]);
       if (Number.isFinite(n)) seq = Math.max(seq, n);
       nextZ = Math.max(nextZ, p.z + 1);
     }
-    set({ panels, suites, seq, nextZ });
+    set({ panels, suites, groups, preferences: { ...DEFAULT_PREFERENCES, ...preferences }, seq, gseq, nextZ });
   },
 
   setDrawer(open, tab) {
@@ -157,3 +290,6 @@ export const selectOrderedPanels = (s: CanvasState): PanelState[] =>
 
 export const selectInstalledIds = (s: CanvasState): Set<string> =>
   new Set(Object.values(s.panels).map((p) => p.pluginId));
+
+export const selectOrderedGroups = (s: CanvasState): GroupState[] =>
+  Object.values(s.groups).sort((a, b) => a.gid.localeCompare(b.gid, undefined, { numeric: true }));

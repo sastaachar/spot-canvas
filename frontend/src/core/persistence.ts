@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import { usePluginRegistry } from './registry';
-import { useCanvasStore, type PanelState, type SuiteState } from './store';
+import {
+  DEFAULT_PREFERENCES,
+  GROUP_COLORS,
+  useCanvasStore,
+  type GroupState,
+  type PanelState,
+  type Preferences,
+  type SuiteState
+} from './store';
 import { useToastStore } from './toasts';
 
 const WRITE_DEBOUNCE_MS = 300;
@@ -16,8 +24,21 @@ const PanelSchema = z.object({
   h: z.number(),
   z: z.number(),
   data: z.unknown(),
-  title: z.string().nullable().optional()
+  title: z.string().nullable().optional(),
+  groupId: z.string().nullable().optional()
 });
+
+const GroupSchema = z.object({
+  gid: z.string(),
+  title: z.string(),
+  x: z.number(),
+  y: z.number(),
+  w: z.number(),
+  h: z.number(),
+  color: z.enum(GROUP_COLORS)
+});
+
+const PreferencesSchema = z.object({ theme: z.enum(['system', 'light', 'dark']) }).partial();
 
 const SuiteStateSchema = z.object({
   url: z.string().nullable(),
@@ -28,12 +49,16 @@ const SuiteStateSchema = z.object({
 const LayoutSchema = z.object({
   version: z.literal(1),
   panels: z.array(PanelSchema),
-  suites: z.record(z.string(), SuiteStateSchema).optional()
+  suites: z.record(z.string(), SuiteStateSchema).optional(),
+  groups: z.array(GroupSchema).optional(),
+  preferences: PreferencesSchema.optional()
 });
 
 export interface LayoutDocument {
   panels: PanelState[];
   suites: Record<string, SuiteState>;
+  groups: GroupState[];
+  preferences: Preferences;
 }
 
 export interface LayoutBackend {
@@ -46,7 +71,12 @@ export function parseLayoutDocument(json: string | null): LayoutDocument | null 
   try {
     const result = LayoutSchema.safeParse(JSON.parse(json));
     if (!result.success) return null;
-    return { panels: result.data.panels as PanelState[], suites: result.data.suites ?? {} };
+    return {
+      panels: result.data.panels as PanelState[],
+      suites: result.data.suites ?? {},
+      groups: result.data.groups ?? [],
+      preferences: { ...DEFAULT_PREFERENCES, ...result.data.preferences }
+    };
   } catch {
     return null;
   }
@@ -56,8 +86,13 @@ export function parseLayout(json: string | null): PanelState[] | null {
   return parseLayoutDocument(json)?.panels ?? null;
 }
 
-export function serializeLayout(panels: Record<string, PanelState>, suites: Record<string, SuiteState> = {}): string {
-  return JSON.stringify({ version: 1, panels: Object.values(panels), suites });
+export function serializeLayout(
+  panels: Record<string, PanelState>,
+  suites: Record<string, SuiteState> = {},
+  groups: Record<string, GroupState> = {},
+  preferences: Preferences = DEFAULT_PREFERENCES
+): string {
+  return JSON.stringify({ version: 1, panels: Object.values(panels), suites, groups: Object.values(groups), preferences });
 }
 
 async function loadSuiteModules(suites: Record<string, SuiteState>): Promise<void> {
@@ -88,19 +123,26 @@ export async function restoreLayout(backend: LayoutBackend): Promise<boolean> {
   const doc = parseLayoutDocument(stored);
   if (!doc) return false;
   await loadSuiteModules(doc.suites);
-  useCanvasStore.getState().hydrate(doc.panels, doc.suites);
+  useCanvasStore.getState().hydrate(doc.panels, doc.suites, doc.groups, doc.preferences);
   return true;
 }
 
 export function attachPersistence(backend: LayoutBackend): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
   const unsubscribe = useCanvasStore.subscribe((state, prev) => {
-    if (state.panels === prev.panels && state.suites === prev.suites) return;
+    if (
+      state.panels === prev.panels &&
+      state.suites === prev.suites &&
+      state.groups === prev.groups &&
+      state.preferences === prev.preferences
+    ) {
+      return;
+    }
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
-      const { panels, suites } = useCanvasStore.getState();
-      backend.write(serializeLayout(panels, suites)).catch((error: unknown) => {
+      const { panels, suites, groups, preferences } = useCanvasStore.getState();
+      backend.write(serializeLayout(panels, suites, groups, preferences)).catch((error: unknown) => {
         console.warn('[spot-canvas] layout save failed', error);
         useToastStore.getState().push(SAVE_FAILED, 'error', SYSTEM);
       });

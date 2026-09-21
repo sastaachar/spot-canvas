@@ -3,9 +3,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useMenuStore, type MenuTarget } from '../core/menu';
 import { getPlugin, suiteForPlugin, usePluginRegistry } from '../core/registry';
-import { useSession } from '../core/session';
-import { useCanvasStore } from '../core/store';
+import { GROUP_COLORS, useCanvasStore, type GroupColor } from '../core/store';
 import { hasSetup, needsSetup, runAfterSetup, useSetupStore } from '../core/suites';
+import { useUiStore } from '../core/ui';
 
 interface Action {
   kind: 'action';
@@ -14,6 +14,7 @@ interface Action {
   danger?: boolean;
   disabled?: boolean;
   hint?: string;
+  checked?: boolean;
 }
 
 interface Submenu {
@@ -30,6 +31,7 @@ interface Heading {
 type Entry = Action | Submenu | Heading | 'separator';
 
 const VIEWPORT_MARGIN = 8;
+const COLOR_LABEL: Record<GroupColor, string> = { blue: 'Blue', amber: 'Amber', green: 'Green', violet: 'Violet', slate: 'Slate' };
 
 function canvasPoint(x: number, y: number): { x: number; y: number } {
   const rect = document.getElementById('canvas')?.getBoundingClientRect();
@@ -49,10 +51,9 @@ export function ContextMenu() {
   const suites = usePluginRegistry(useShallow((s) => Object.values(s.suites)));
   const suiteOf = usePluginRegistry((s) => s.suiteOf);
   const suiteStates = useCanvasStore((s) => s.suites);
-  const hasPanels = useCanvasStore((s) => Object.keys(s.panels).length > 0);
+  const groups = useCanvasStore((s) => s.groups);
+  const hasContent = useCanvasStore((s) => Object.keys(s.panels).length > 0 || Object.keys(s.groups).length > 0);
   const panel = useCanvasStore((s) => (target.kind === 'panel' ? s.panels[target.iid] : undefined));
-  const user = useSession((s) => s.user);
-  const signOut = useSession((s) => s.signOut);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -83,7 +84,11 @@ export function ContextMenu() {
     kind: 'action',
     label: plugin.manifest.name,
     hint: plugin.manifest.kind,
-    onSelect: () => runAfterSetup(plugin.manifest.id, () => useCanvasStore.getState().addPanel(plugin.manifest, at))
+    onSelect: () =>
+      runAfterSetup(plugin.manifest.id, () => {
+        const store = useCanvasStore.getState();
+        store.settlePanel(store.addPanel(plugin.manifest, at));
+      })
   });
 
   const setupEntry = (suite: SpotCanvasSuite): Action => {
@@ -108,34 +113,79 @@ export function ContextMenu() {
   }
 
   function canvasEntries(): Entry[] {
-    const { clearPanels, setDrawer } = useCanvasStore.getState();
+    const { clearPanels, setDrawer, addGroup } = useCanvasStore.getState();
     const at = canvasPoint(x, y);
     const configurable = suites.filter(hasSetup);
     return [
       { kind: 'submenu', label: 'Add plugin', items: addMenu(at) },
+      {
+        kind: 'action',
+        label: 'New group here',
+        onSelect: () => {
+          const gid = addGroup(at);
+          useUiStore.getState().setRenaming(gid);
+        }
+      },
       ...(configurable.length > 0 ? [{ kind: 'submenu', label: 'Suites', items: configurable.map(setupEntry) } as Submenu] : []),
       { kind: 'action', label: 'Load plugin from URL…', onSelect: () => setDrawer(true, 'developer') },
       'separator',
-      { kind: 'action', label: 'Clear homepage', danger: true, disabled: !hasPanels, onSelect: clearPanels },
+      { kind: 'action', label: 'Clear homepage', danger: true, disabled: !hasContent, onSelect: clearPanels },
       'separator',
-      { kind: 'action', label: user ? `Sign out ${user.displayName}` : 'Sign out', onSelect: () => void signOut() }
+      { kind: 'action', label: 'Profile & appearance…', onSelect: () => useUiStore.getState().setProfileOpen(true) }
     ];
   }
 
   function panelEntries(t: Extract<MenuTarget, { kind: 'panel' }>): Entry[] {
-    const { removePanel, focusPanel } = useCanvasStore.getState();
+    const { removePanel, focusPanel, assignPanel } = useCanvasStore.getState();
     const plugin = panel ? getPlugin(panel.pluginId) : undefined;
     const suite = panel ? suiteForPlugin(panel.pluginId) : undefined;
     const name = panel?.title ?? plugin?.manifest.name ?? t.iid;
+    const groupItems: Entry[] = [
+      { kind: 'action', label: 'No group', checked: !panel?.groupId, onSelect: () => assignPanel(t.iid, null) },
+      ...Object.values(groups).map<Entry>((g) => ({
+        kind: 'action',
+        label: g.title,
+        checked: panel?.groupId === g.gid,
+        onSelect: () => assignPanel(t.iid, g.gid)
+      }))
+    ];
     return [
       { kind: 'action', label: 'Bring to front', onSelect: () => focusPanel(t.iid) },
+      ...(Object.keys(groups).length > 0 ? [{ kind: 'submenu', label: 'Group', items: groupItems } as Submenu] : []),
       ...(suite && hasSetup(suite) ? [setupEntry(suite)] : []),
       'separator',
       { kind: 'action', label: `Remove ${name}`, danger: true, onSelect: () => removePanel(t.iid) }
     ];
   }
 
-  const entries = target.kind === 'canvas' ? canvasEntries() : panelEntries(target);
+  function groupEntries(t: Extract<MenuTarget, { kind: 'group' }>): Entry[] {
+    const { removeGroup, recolorGroup } = useCanvasStore.getState();
+    const group = groups[t.gid];
+    const members = Object.values(useCanvasStore.getState().panels).filter((p) => p.groupId === t.gid).length;
+    return [
+      { kind: 'action', label: 'Rename', onSelect: () => useUiStore.getState().setRenaming(t.gid) },
+      {
+        kind: 'submenu',
+        label: 'Colour',
+        items: GROUP_COLORS.map<Entry>((c) => ({
+          kind: 'action',
+          label: COLOR_LABEL[c],
+          checked: group?.color === c,
+          onSelect: () => recolorGroup(t.gid, c)
+        }))
+      },
+      'separator',
+      { kind: 'action', label: 'Ungroup', hint: members > 0 ? 'keeps panels' : undefined, onSelect: () => removeGroup(t.gid, false) },
+      {
+        kind: 'action',
+        label: members > 0 ? `Remove group and ${members === 1 ? 'its panel' : `${members} panels`}` : 'Remove group',
+        danger: true,
+        onSelect: () => removeGroup(t.gid, true)
+      }
+    ];
+  }
+
+  const entries = target.kind === 'canvas' ? canvasEntries() : target.kind === 'panel' ? panelEntries(target) : groupEntries(target);
 
   return (
     <div ref={ref} className="menu" role="menu" style={{ left: x, top: y }}>
@@ -201,8 +251,9 @@ function MenuList({ entries, onClose }: ListProps) {
           <button
             key={entry.label}
             type="button"
-            role="menuitem"
-            className={`menu__item${entry.danger ? ' is-danger' : ''}`}
+            role={entry.checked === undefined ? 'menuitem' : 'menuitemradio'}
+            aria-checked={entry.checked}
+            className={`menu__item${entry.danger ? ' is-danger' : ''}${entry.checked ? ' is-checked' : ''}`}
             disabled={entry.disabled}
             onClick={() => {
               onClose();

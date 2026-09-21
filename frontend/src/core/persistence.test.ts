@@ -20,7 +20,7 @@ const memoryBackend = (): LayoutBackend & { value: string | null } => {
 };
 
 beforeEach(() => {
-  useCanvasStore.setState({ panels: {}, suites: {}, seq: 0, nextZ: 1 });
+  useCanvasStore.setState({ panels: {}, suites: {}, groups: {}, preferences: { theme: 'system' }, seq: 0, gseq: 0, nextZ: 1 });
   useToastStore.setState({ toasts: [] });
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
@@ -98,9 +98,16 @@ describe('suites in the layout document', () => {
   const suites = { 'acme.suite': { url: 'https://p.example/acme.js', settings: { host: 'https://x' }, configured: true } };
 
   it('round-trips suite state and tolerates documents without it', () => {
-    const doc = parseLayoutDocument(serializeLayout({ [panel.iid]: panel }, suites));
-    expect(doc).toEqual({ panels: [panel], suites });
-    expect(parseLayoutDocument(JSON.stringify({ version: 1, panels: [] }))).toEqual({ panels: [], suites: {} });
+    const group = { gid: 'group#1', title: 'Sales', x: 0, y: 0, w: 400, h: 300, color: 'amber' as const };
+    const doc = parseLayoutDocument(serializeLayout({ [panel.iid]: panel }, suites, { [group.gid]: group }, { theme: 'dark' }));
+    expect(doc).toEqual({ panels: [panel], suites, groups: [group], preferences: { theme: 'dark' } });
+    expect(parseLayoutDocument(JSON.stringify({ version: 1, panels: [] }))).toEqual({
+      panels: [],
+      suites: {},
+      groups: [],
+      preferences: { theme: 'system' }
+    });
+    expect(parseLayoutDocument(JSON.stringify({ version: 1, panels: [], groups: [{ ...group, color: 'pink' }] }))).toBeNull();
     expect(parseLayoutDocument(JSON.stringify({ version: 1, panels: [], suites: { a: { url: 1 } } }))).toBeNull();
   });
 

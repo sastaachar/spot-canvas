@@ -211,11 +211,16 @@ describe('layouts', () => {
     const alice = (await login(ALICE)).cookie;
     const withSuites = {
       ...layout,
-      suites: { 'acme.suite': { url: 'https://plugins.example.com/acme.js', settings: { host: 'https://x', retries: 3, dark: true }, configured: true } }
+      suites: { 'acme.suite': { url: 'https://plugins.example.com/acme.js', settings: { host: 'https://x', retries: 3, dark: true }, configured: true } },
+      groups: [{ gid: 'group#1', title: 'Sales', x: 0, y: 0, w: 400, h: 300, color: 'amber' }],
+      preferences: { theme: 'dark' }
     };
     const put = await api('/api/layout', { method: 'PUT', headers: { ...json, ...csrf }, body: JSON.stringify(withSuites) }, alice);
     expect(put.status).toBe(204);
     expect(await (await api('/api/layout', {}, alice)).json()).toEqual(withSuites);
+
+    const badColor = { ...layout, groups: [{ gid: 'g', title: '', x: 0, y: 0, w: 1, h: 1, color: 'pink' }] };
+    expect((await api('/api/layout', { method: 'PUT', headers: { ...json, ...csrf }, body: JSON.stringify(badColor) }, alice)).status).toBe(400);
 
     const insecure = { ...layout, suites: { 'acme.suite': { url: 'http://plugins.example.com/acme.js', settings: {}, configured: false } } };
     const bad = await api('/api/layout', { method: 'PUT', headers: { ...json, ...csrf }, body: JSON.stringify(insecure) }, alice);

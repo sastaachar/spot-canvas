@@ -37,6 +37,7 @@ import { useSession } from './core/session';
 import { useCanvasStore, type PanelState } from './core/store';
 import { useSetupStore } from './core/suites';
 import { useToastStore } from './core/toasts';
+import { useUiStore } from './core/ui';
 
 const user = { id: 'u1', name: 'alice', displayName: 'Alice' };
 const notePanel: PanelState = {
@@ -54,7 +55,19 @@ beforeEach(() => {
   usePluginRegistry.setState({ plugins: {}, suites: {}, suiteOf: {} });
   registerBuiltins();
   useSetupStore.setState({ suiteId: null, onDone: null });
-  useCanvasStore.setState({ panels: {}, suites: {}, seq: 0, nextZ: 1, drawerOpen: false, drawerTab: 'browse' });
+  useCanvasStore.setState({
+    panels: {},
+    suites: {},
+    groups: {},
+    preferences: { theme: 'system' },
+    seq: 0,
+    gseq: 0,
+    nextZ: 1,
+    drawerOpen: false,
+    drawerTab: 'browse'
+  });
+  useUiStore.setState({ profileOpen: false, renamingGid: null });
+  document.documentElement.removeAttribute('data-theme');
   useToastStore.setState({ toasts: [] });
   useMenuStore.setState({ open: false });
   useSession.setState({ status: 'loading', user: null, error: null });
@@ -78,6 +91,8 @@ const addFromMenu = (name: string) => fireEvent.click(within(openAddMenu()).getB
 async function renderSignedIn() {
   render(<App />);
   await screen.findByRole('main');
+  // let the restore promise chain settle before tests mutate the store
+  await act(async () => {});
 }
 
 describe('session', () => {
@@ -106,13 +121,15 @@ describe('session', () => {
     expect((input as HTMLInputElement).value).toBe('');
   });
 
-  it('signs out from the canvas menu and clears the canvas', async () => {
+  it('signs out from the profile sheet and clears the canvas', async () => {
     memory.value = serializeLayout({ [notePanel.iid]: notePanel });
     await renderSignedIn();
     expect(screen.getByRole('region', { name: 'Sticky note' })).toBeTruthy();
 
-    fireEvent.contextMenu(canvas(), { clientX: 50, clientY: 50 });
-    fireEvent.click(menuItem('Sign out Alice'));
+    fireEvent.click(screen.getByRole('button', { name: 'Profile' }));
+    const sheet = screen.getByRole('dialog', { name: 'Profile' });
+    expect(within(sheet).getByText('Alice')).toBeTruthy();
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Sign out' }));
 
     await screen.findByLabelText('ThoughtSpot token');
     expect(api.signOut).toHaveBeenCalled();
@@ -371,5 +388,149 @@ describe('suites', () => {
     fireEvent.contextMenu(canvas());
     const add = openAddMenu();
     expect(within(add).getByText('Nothing available')).toBeTruthy();
+  });
+});
+
+describe('groups', () => {
+  const dragHeader = (head: HTMLElement, from: [number, number], to: [number, number]) => {
+    head.setPointerCapture = () => {};
+    fireEvent.pointerDown(head, { button: 0, clientX: from[0], clientY: from[1], pointerId: 1 });
+    fireEvent.pointerMove(head, { clientX: to[0], clientY: to[1], pointerId: 1 });
+    fireEvent.pointerUp(head, { pointerId: 1 });
+  };
+
+  it('creates a group from the menu, renames it inline, and adopts a panel dropped inside', async () => {
+    await renderSignedIn();
+    fireEvent.contextMenu(canvas(), { clientX: 100, clientY: 100 });
+    fireEvent.click(menuItem('New group here'));
+
+    const rename = screen.getByRole('textbox', { name: 'Group name' });
+    fireEvent.change(rename, { target: { value: 'Sales' } });
+    fireEvent.keyDown(rename, { key: 'Enter' });
+    const group = screen.getByRole('region', { name: 'Group Sales' });
+    expect(useCanvasStore.getState().groups['group#1']).toMatchObject({ x: 100, y: 100, title: 'Sales', color: 'blue' });
+    expect(within(group).getByText('0 panels')).toBeTruthy();
+
+    act(() => {
+      useCanvasStore.getState().addPanel(getPlugin('spotcanvas.note')!.manifest, { x: 700, y: 700 });
+    });
+    const panel = screen.getByRole('region', { name: 'Sticky note' });
+    const head = within(panel).getByText('Sticky note').closest('header')!;
+    dragHeader(head, [700, 700], [200, 200]);
+    const [state] = Object.values(useCanvasStore.getState().panels);
+    expect(state).toMatchObject({ x: 200, y: 200, groupId: 'group#1' });
+    expect(within(group).getByText('1 panel')).toBeTruthy();
+
+    dragHeader(head, [200, 200], [900, 900]);
+    expect(Object.values(useCanvasStore.getState().panels)[0]!.groupId).toBeNull();
+    await vi.waitFor(() => expect(parseLayoutDocument(memory.value)?.groups).toHaveLength(1));
+  });
+
+  it('moves member panels with the group and offers colour, ungroup and remove from the group menu', async () => {
+    await renderSignedIn();
+    let iid = '';
+    act(() => {
+      const store = useCanvasStore.getState();
+      const gid = store.addGroup({ x: 50, y: 50, w: 400, h: 300 }, 'Ops');
+      iid = store.addPanel(getPlugin('spotcanvas.timer')!.manifest, { x: 80, y: 120 });
+      store.assignPanel(iid, gid);
+    });
+    const group = screen.getByRole('region', { name: 'Group Ops' });
+    dragHeader(within(group).getByText('Ops').closest('header')!, [60, 60], [110, 90]);
+    expect(useCanvasStore.getState().groups['group#1']).toMatchObject({ x: 100, y: 80 });
+    expect(useCanvasStore.getState().panels[iid]).toMatchObject({ x: 130, y: 150 });
+
+    fireEvent.contextMenu(within(group).getByText('Ops').closest('header')!);
+    fireEvent.click(menuItem('Colour'));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Violet' }));
+    expect(useCanvasStore.getState().groups['group#1']!.color).toBe('violet');
+
+    fireEvent.contextMenu(within(group).getByText('Ops').closest('header')!);
+    fireEvent.click(menuItem(/^Ungroup/));
+    expect(useCanvasStore.getState().groups).toEqual({});
+    expect(useCanvasStore.getState().panels[iid]!.groupId).toBeNull();
+
+    act(() => {
+      const store = useCanvasStore.getState();
+      store.assignPanel(iid, store.addGroup({ x: 0, y: 0 }, 'Temp'));
+    });
+    const temp = screen.getByRole('region', { name: 'Group Temp' });
+    fireEvent.contextMenu(within(temp).getByText('Temp').closest('header')!);
+    fireEvent.click(menuItem(/Remove group and its panel/));
+    expect(useCanvasStore.getState().panels).toEqual({});
+    expect(screen.getByText('Your homepage is empty')).toBeTruthy();
+  });
+
+  it('assigns a panel to a group from its menu', async () => {
+    await renderSignedIn();
+    act(() => {
+      const store = useCanvasStore.getState();
+      store.addGroup({ x: 0, y: 0 }, 'Finance');
+      store.addPanel(getPlugin('spotcanvas.note')!.manifest, { x: 900, y: 900 });
+    });
+    const panel = screen.getByRole('region', { name: 'Sticky note' });
+    fireEvent.contextMenu(within(panel).getByText('Sticky note').closest('header')!);
+    fireEvent.click(menuItem('Group'));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Finance' }));
+    expect(Object.values(useCanvasStore.getState().panels)[0]!.groupId).toBe('group#1');
+  });
+});
+
+describe('profile, theme and chat', () => {
+  it('switches theme from the profile sheet and persists the preference', async () => {
+    await renderSignedIn();
+    fireEvent.click(screen.getByRole('button', { name: 'Profile' }));
+    const sheet = screen.getByRole('dialog', { name: 'Profile' });
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'Dark' }));
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'System' }));
+    expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'Light' }));
+    await vi.waitFor(() => expect(parseLayoutDocument(memory.value)?.preferences.theme).toBe('light'));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Profile' })).toBeNull();
+  });
+
+  it('lists suites and plugins in the profile sheet and opens suite setup from it', async () => {
+    usePluginRegistry.getState().registerSuite(formSuite());
+    await renderSignedIn();
+    act(() => {
+      useCanvasStore.getState().addPanel(getPlugin('spotcanvas.links')!.manifest);
+    });
+    fireEvent.contextMenu(canvas());
+    fireEvent.click(menuItem('Profile & appearance…'));
+    const sheet = screen.getByRole('dialog', { name: 'Profile' });
+    expect(within(sheet).getByText('Acme')).toBeTruthy();
+    expect(within(sheet).getByText('1 on page')).toBeTruthy();
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Set up' }));
+    expect(screen.getByRole('dialog', { name: 'Set up Acme' })).toBeTruthy();
+  });
+
+  it('acknowledges chat messages until the agent backend exists', async () => {
+    await renderSignedIn();
+    const input = screen.getByRole('textbox', { name: 'Message Spotter' });
+    const send = screen.getByRole('button', { name: 'Send' });
+    expect((send as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(input, { target: { value: 'Add my sales liveboard' } });
+    fireEvent.submit(input.closest('form')!);
+    expect(useToastStore.getState().toasts.at(-1)?.from).toBe('spotter');
+    expect((input as HTMLInputElement).value).toBe('');
+  });
+
+  it('adds a link inside the Links plugin', async () => {
+    await renderSignedIn();
+    fireEvent.contextMenu(canvas());
+    addFromMenu('Links');
+    const panel = screen.getByRole('region', { name: 'Links' });
+    const shadow = shadowOf(panel);
+    fireEvent.input(shadow.querySelector('input[aria-label="Link label"]')!, { target: { value: 'Docs' } });
+    fireEvent.input(shadow.querySelector('input[aria-label="Link address"]')!, { target: { value: 'docs.thoughtspot.com' } });
+    fireEvent.submit(shadow.querySelector('form')!);
+    const anchor = shadow.querySelector('a')!;
+    expect(anchor.textContent).toBe('Docs');
+    expect(anchor.href).toBe('https://docs.thoughtspot.com/');
+    expect(anchor.rel).toContain('noopener');
+    fireEvent.click(shadow.querySelector('button[aria-label="Remove Docs"]')!);
+    expect(shadow.querySelector('a')).toBeNull();
   });
 });

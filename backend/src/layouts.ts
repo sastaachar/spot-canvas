@@ -18,8 +18,23 @@ export const PanelSchema = z.object({
   h: finite,
   z: finite,
   data: z.unknown(),
-  title: z.string().max(MAX_TITLE_LENGTH).nullable().optional()
+  title: z.string().max(MAX_TITLE_LENGTH).nullable().optional(),
+  groupId: z.string().max(MAX_ID_LENGTH).nullable().optional()
 });
+
+const MAX_GROUPS = 100;
+
+export const GroupSchema = z.object({
+  gid: z.string().min(1).max(MAX_ID_LENGTH),
+  title: z.string().max(MAX_TITLE_LENGTH),
+  x: finite,
+  y: finite,
+  w: finite,
+  h: finite,
+  color: z.enum(['blue', 'amber', 'green', 'violet', 'slate'])
+});
+
+export const PreferencesSchema = z.object({ theme: z.enum(['system', 'light', 'dark']) }).partial();
 
 const MAX_SUITES = 50;
 const MAX_SETTINGS_PER_SUITE = 40;
@@ -52,7 +67,9 @@ export const LayoutSchema = z.object({
   suites: z
     .record(z.string().min(1).max(MAX_ID_LENGTH), SuiteStateSchema)
     .refine((r) => Object.keys(r).length <= MAX_SUITES, 'too many suites')
-    .optional()
+    .optional(),
+  groups: z.array(GroupSchema).max(MAX_GROUPS).optional(),
+  preferences: PreferencesSchema.optional()
 });
 
 export type Layout = z.infer<typeof LayoutSchema>;

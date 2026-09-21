@@ -26,3 +26,8 @@ export function onThemeChange(handler: (theme: ThemeName) => void): () => void {
     observer.disconnect();
   };
 }
+
+export function applyThemePreference(theme: 'system' | 'light' | 'dark', root: HTMLElement = document.documentElement): void {
+  if (theme === 'system') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', theme);
+}

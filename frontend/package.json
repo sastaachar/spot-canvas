@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@spot-canvas/plugin-embed": "workspace:*",
+    "@spot-canvas/plugin-links": "workspace:*",
     "@spot-canvas/plugin-note": "workspace:*",
     "@spot-canvas/plugin-thoughtspot-chart": "workspace:*",
     "@spot-canvas/plugin-timer": "workspace:*",

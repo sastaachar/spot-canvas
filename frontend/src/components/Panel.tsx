@@ -109,6 +109,7 @@ export function Panel({ panel }: Props) {
       target.removeEventListener('pointermove', onMove);
       target.removeEventListener('pointerup', onUp);
       target.removeEventListener('pointercancel', onUp);
+      if (mode === 'move') useCanvasStore.getState().settlePanel(panel.iid);
     };
     target.addEventListener('pointermove', onMove);
     target.addEventListener('pointerup', onUp);
@@ -126,7 +127,7 @@ export function Panel({ panel }: Props) {
 
   return (
     <section
-      className="panel"
+      className={`panel${panel.groupId ? ' is-grouped' : ''}`}
       aria-label={name}
       style={{ left: panel.x, top: panel.y, width: panel.w, height: panel.h, zIndex: panel.z }}
       onPointerDown={() => focusPanel(panel.iid)}

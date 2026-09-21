@@ -12,7 +12,8 @@ const manifest: PluginManifest = {
   permissions: []
 };
 
-const reset = () => useCanvasStore.setState({ panels: {}, suites: {}, seq: 0, nextZ: 1, drawerOpen: false, drawerTab: 'browse' });
+const reset = () =>
+  useCanvasStore.setState({ panels: {}, suites: {}, groups: {}, preferences: { theme: 'system' }, seq: 0, gseq: 0, nextZ: 1, drawerOpen: false, drawerTab: 'browse' });
 
 describe('canvas store', () => {
   beforeEach(reset);
@@ -110,6 +111,43 @@ describe('canvas store', () => {
     expect(useCanvasStore.getState().suites['b.s']).toEqual({ url: null, settings: {}, configured: true });
     s.hydrate([], { 'c.s': { url: null, settings: {}, configured: false } });
     expect(Object.keys(useCanvasStore.getState().suites)).toEqual(['c.s']);
+  });
+
+  it('manages groups: create, resize floors, settle by containment, rename, hydrate with orphan cleanup', () => {
+    const s = useCanvasStore.getState();
+    const gid = s.addGroup({ x: -5, y: 10, w: 10, h: 10 });
+    expect(useCanvasStore.getState().groups[gid]).toMatchObject({ x: 0, y: 10, w: 240, h: 160, title: 'Group 1' });
+    s.resizeGroup(gid, 1000, 20);
+    expect(useCanvasStore.getState().groups[gid]).toMatchObject({ w: 1000, h: 160 });
+    s.renameGroup(gid, '   ');
+    expect(useCanvasStore.getState().groups[gid]!.title).toBe('Group 1');
+    s.renameGroup(gid, ' Sales ');
+    expect(useCanvasStore.getState().groups[gid]!.title).toBe('Sales');
+    s.recolorGroup(gid, 'green');
+    expect(useCanvasStore.getState().groups[gid]!.color).toBe('green');
+
+    const inside = s.addPanel(manifest, { x: 20, y: 20 });
+    const outside = s.addPanel(manifest, { x: 2000, y: 20 });
+    s.settlePanel(inside);
+    s.settlePanel(outside);
+    expect(useCanvasStore.getState().panels[inside]!.groupId).toBe(gid);
+    expect(useCanvasStore.getState().panels[outside]!.groupId).toBeNull();
+    s.assignPanel(outside, 'missing');
+    expect(useCanvasStore.getState().panels[outside]!.groupId).toBeNull();
+    s.moveGroup('missing', 1, 1);
+    s.resizeGroup('missing', 1, 1);
+    s.renameGroup('missing', 'x');
+    s.recolorGroup('missing', 'blue');
+    s.settlePanel('missing');
+
+    s.hydrate([{ iid: 'test.widget#9', pluginId: 'test.widget', x: 0, y: 0, w: 200, h: 120, z: 1, data: null, groupId: 'group#7' }], {}, [
+      { gid: 'group#3', title: 'Kept', x: 0, y: 0, w: 300, h: 200, color: 'slate' }
+    ]);
+    expect(useCanvasStore.getState().panels['test.widget#9']!.groupId).toBeNull();
+    expect(useCanvasStore.getState().addGroup()).toBe('group#4');
+    expect(useCanvasStore.getState().preferences).toEqual({ theme: 'system' });
+    useCanvasStore.getState().setPreferences({ theme: 'dark' });
+    expect(useCanvasStore.getState().preferences.theme).toBe('dark');
   });
 
   it('toggles the drawer and switches tab only when asked', () => {

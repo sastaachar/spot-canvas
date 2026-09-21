@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type MenuTarget = { kind: 'canvas' } | { kind: 'panel'; iid: string };
+export type MenuTarget = { kind: 'canvas' } | { kind: 'panel'; iid: string } | { kind: 'group'; gid: string };
 
 interface MenuState {
   open: boolean;
