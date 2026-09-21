@@ -73,7 +73,8 @@ describe('chain and authenticatorFor', () => {
     devDefaultUserId: null,
     dataDir: 'data',
     sessionTtlMs: 1000,
-    cookieSecure: true
+    cookieSecure: true,
+    gateway: null
   };
 
   it('returns the first match and null when nobody matches', async () => {

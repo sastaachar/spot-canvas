@@ -26,7 +26,8 @@ const config: Config = {
   devDefaultUserId: null,
   dataDir: '',
   sessionTtlMs: 60_000,
-  cookieSecure: false
+  cookieSecure: false,
+  gateway: { url: 'https://llm.example/v1', key: 'test-key', model: 'test-model' }
 };
 
 const LOGIN_LIMIT = 6;
@@ -53,6 +54,8 @@ async function start(dir: string, loginLimit: number, overrides: Partial<Config>
     layouts,
     limiter: new RateLimiter(1000, 60_000),
     loginLimiter: new RateLimiter(loginLimit, 60_000),
+    chatLimiter: new RateLimiter(1000, 60_000),
+    gatewayFetch: fakeGateway,
     log: () => {}
   });
   const server = createServer((req, res) => void app(req, res));
@@ -62,6 +65,15 @@ async function start(dir: string, loginLimit: number, overrides: Partial<Config>
 }
 
 const stop = (running: Running) => new Promise<void>((resolve) => running.server.close(() => resolve()));
+
+const gatewayScript: Array<(body: { messages: unknown[] }) => unknown> = [];
+const fakeGateway = async (_url: string, init?: RequestInit): Promise<Response> => {
+  const body = JSON.parse(String(init?.body)) as { messages: unknown[] };
+  const next = gatewayScript.shift();
+  if (!next) return new Response(JSON.stringify({ choices: [{ message: { content: 'Nothing to do.' } }] }), { status: 200 });
+  const out = next(body);
+  return out instanceof Response ? out : new Response(JSON.stringify(out), { status: 200 });
+};
 
 let main: Running;
 let base: string;
@@ -291,6 +303,78 @@ describe('rate limiting', () => {
       expect(statuses.slice(LOGIN_LIMIT)).toEqual([429, 429]);
     } finally {
       await stop(limited);
+    }
+  });
+});
+
+describe('chat', () => {
+  const catalogue = [{ id: 'spotcanvas.note', name: 'Sticky note', kind: 'widget', size: [220, 160] }];
+  const chat = (cookie: string, body: unknown) =>
+    api('/api/chat', { method: 'POST', headers: { ...json, ...csrf }, body: JSON.stringify(body) }, cookie);
+
+  it('runs tool calls against the user layout and saves the result', async () => {
+    const alice = (await login(BOB)).cookie;
+    gatewayScript.push(
+      () => ({
+        choices: [
+          {
+            message: {
+              content: null,
+              tool_calls: [
+                { id: 'c1', type: 'function', function: { name: 'create_group', arguments: JSON.stringify({ title: 'Today' }) } },
+                {
+                  id: 'c2',
+                  type: 'function',
+                  function: { name: 'add_panel', arguments: JSON.stringify({ plugin_id: 'spotcanvas.note', group_id: 'group#1', data: { text: 'Standup 9:30' } }) }
+                }
+              ]
+            }
+          }
+        ]
+      }),
+      (body) => {
+        const tools = body.messages.filter((m) => (m as { role: string }).role === 'tool');
+        expect(tools).toHaveLength(2);
+        return { choices: [{ message: { content: 'Added a Today group with a note.' } }] };
+      }
+    );
+    const res = await chat(alice, { message: 'add a note for standup', catalogue });
+    expect(res.status).toBe(200);
+    const out = (await res.json()) as { reply: string; changed: boolean; actions: string[]; layout: { panels: unknown[]; groups: unknown[] } };
+    expect(out.reply).toBe('Added a Today group with a note.');
+    expect(out.changed).toBe(true);
+    expect(out.actions).toEqual(['create_group', 'add_panel']);
+    expect(out.layout.groups).toHaveLength(1);
+    expect(out.layout.panels[0]).toMatchObject({ pluginId: 'spotcanvas.note', groupId: 'group#1', data: { text: 'Standup 9:30' } });
+
+    const saved = await (await api('/api/layout', {}, alice)).json();
+    expect(saved).toEqual(out.layout);
+  });
+
+  it('answers without changes when the model only talks, and validates the body', async () => {
+    const alice = (await login(ALICE)).cookie;
+    gatewayScript.push(() => ({ choices: [{ message: { content: 'Hello!' } }] }));
+    const res = await chat(alice, { message: 'hi' });
+    expect(await res.json()).toEqual({ reply: 'Hello!', changed: false, actions: [] });
+    expect((await chat(alice, { message: '' })).status).toBe(400);
+    expect((await chat(alice, { message: 'x', catalogue: [{ id: 'a' }] })).status).toBe(400);
+  });
+
+  it('maps gateway failures to 502', async () => {
+    const alice = (await login(ALICE)).cookie;
+    gatewayScript.push(() => new Response('nope', { status: 500 }));
+    const res = await chat(alice, { message: 'hi' });
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: 'agent_unavailable' });
+  });
+
+  it('is disabled without a gateway', async () => {
+    const off = await start(dir, 1000, { gateway: null, devDefaultUserId: 'u-alice' });
+    try {
+      const res = await fetch(`${off.base}/api/chat`, { method: 'POST', headers: { ...json, ...csrf }, body: JSON.stringify({ message: 'hi' }) });
+      expect(res.status).toBe(503);
+    } finally {
+      await stop(off);
     }
   });
 });

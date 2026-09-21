@@ -11,7 +11,7 @@ const { api, memory } = vi.hoisted(() => {
       memory.value = json;
     }
   };
-  const api = { fetchMe: vi.fn(), signIn: vi.fn(), signOut: vi.fn() };
+  const api = { fetchMe: vi.fn(), signIn: vi.fn(), signOut: vi.fn(), sendChat: vi.fn() };
   return { api, memory };
 });
 
@@ -37,6 +37,7 @@ import { useSession } from './core/session';
 import { useCanvasStore, type PanelState } from './core/store';
 import { useSetupStore } from './core/suites';
 import { useToastStore } from './core/toasts';
+import { useChatStore } from './core/chat';
 import { useUiStore } from './core/ui';
 
 const user = { id: 'u1', name: 'alice', displayName: 'Alice' };
@@ -75,6 +76,8 @@ beforeEach(() => {
   api.fetchMe.mockReset().mockResolvedValue(user);
   api.signIn.mockReset().mockResolvedValue(user);
   api.signOut.mockReset().mockResolvedValue(undefined);
+  api.sendChat.mockReset();
+  useChatStore.setState({ turns: [], pending: false, lastReply: null, error: null });
 });
 
 afterEach(cleanup);
@@ -506,15 +509,50 @@ describe('profile, theme and chat', () => {
     expect(screen.getByRole('dialog', { name: 'Set up Acme' })).toBeTruthy();
   });
 
-  it('acknowledges chat messages until the agent backend exists', async () => {
+  it('sends chat with the plugin catalogue, applies the returned layout, and shows the reply', async () => {
     await renderSignedIn();
+    api.sendChat.mockResolvedValue({
+      reply: 'Added a note in a Today group.',
+      changed: true,
+      actions: ['create_group', 'add_panel'],
+      layout: {
+        version: 1,
+        panels: [{ ...notePanel, groupId: 'group#1', data: { text: 'Standup 9:30' } }],
+        groups: [{ gid: 'group#1', title: 'Today', x: 0, y: 0, w: 500, h: 300, color: 'amber' }],
+        suites: {},
+        preferences: { theme: 'system' }
+      }
+    });
     const input = screen.getByRole('textbox', { name: 'Message Spotter' });
-    const send = screen.getByRole('button', { name: 'Send' });
-    expect((send as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.change(input, { target: { value: 'Add my sales liveboard' } });
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(input, { target: { value: 'Add a note for standup' } });
     fireEvent.submit(input.closest('form')!);
-    expect(useToastStore.getState().toasts.at(-1)?.from).toBe('spotter');
+
+    expect((await screen.findByRole('status')).textContent).toContain('Added a note in a Today group.');
+    expect(screen.getByRole('region', { name: 'Group Today' })).toBeTruthy();
+    const panel = screen.getByRole('region', { name: 'Sticky note' });
+    expect(shadowOf(panel).querySelector('textarea')!.value).toBe('Standup 9:30');
+    const [message, history, catalogue] = api.sendChat.mock.calls[0] as [string, unknown[], Array<{ id: string }>];
+    expect(message).toBe('Add a note for standup');
+    expect(history).toEqual([]);
+    expect(catalogue.map((c) => c.id)).toContain('spotcanvas.note');
     expect((input as HTMLInputElement).value).toBe('');
+    expect(useChatStore.getState().turns).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss reply' }));
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('shows chat errors in the bubble and keeps the page as it was', async () => {
+    await renderSignedIn();
+    api.sendChat.mockRejectedValue(new TypeError('Failed to fetch'));
+    const input = screen.getByRole('textbox', { name: 'Message Spotter' });
+    fireEvent.change(input, { target: { value: 'hello' } });
+    fireEvent.submit(input.closest('form')!);
+    const status = await screen.findByRole('status');
+    expect(status.className).toContain('is-error');
+    expect(status.textContent).toContain('not reachable');
+    expect(useCanvasStore.getState().panels).toEqual({});
   });
 
   it('adds a link inside the Links plugin', async () => {

@@ -44,6 +44,7 @@ With `DEV_DEFAULT_USER=alice` in `backend/.env` there is no sign-in step: the ho
 | `GET /api/me` | cookie | current user |
 | `GET /api/layout` | cookie | this user's layout, `204` when none |
 | `PUT /api/layout` | cookie | replace this user's layout |
+| `POST /api/chat` `{ message, history?, catalogue }` | cookie | ask Spotter; tool calls edit and save the layout, response carries the new layout when it changed |
 
 ## Plugin contract
 
@@ -99,7 +100,7 @@ Load a plugin you are developing from the canvas menu: right-click, "Load plugin
 - **Canvas.** Flat ThoughtSpot-blue surface. Panels are plugins; drag by the header, resize from the corner.
 - **Groups.** Right-click → *New group here* draws a tinted rectangle with a title. Drop a panel inside and it joins the group; drag the group and its panels move with it. Rename by double-clicking the title; colour, ungroup or remove from the group's menu.
 - **Profile** (avatar, top right). Who you are, light / dark / system theme (saved with your layout), every suite with its setup state, every plugin and how many are on the page, sign out.
-- **Chat bar** (bottom). Talks to Spotter. The agent that edits the page is the next piece; today it acknowledges the message.
+- **Chat bar** (bottom). Talks to Spotter, an agent that edits the page for you through tools: "add a note for standup in a Today group", "put my links next to the workflow", "switch to dark". Replies appear in a bubble above the bar; the page updates in place.
 
 ### Right-click menu
 

@@ -48,6 +48,20 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ DEV_USERS: devUsers, DEV_DEFAULT_USER: 'zed' })).toThrow(/DEV_DEFAULT_USER/);
   });
 
+  it('parses the LLM gateway only when both key and url are present', () => {
+    expect(loadConfig({ DEV_USERS: devUsers }).gateway).toBeNull();
+    expect(loadConfig({ DEV_USERS: devUsers, API_GATEWAY_KEY: 'k', LLM_GATEWAY_URL: 'https://llm.example/v1/' }).gateway).toEqual({
+      url: 'https://llm.example/v1',
+      key: 'k',
+      model: 'kimi-k3'
+    });
+    expect(loadConfig({ DEV_USERS: devUsers, API_GATEWAY_KEY: 'k', LLM_GATEWAY_URL: 'https://llm.example/v1', LLM_MODEL: 'other' }).gateway?.model).toBe('other');
+    expect(() => loadConfig({ DEV_USERS: devUsers, API_GATEWAY_KEY: 'k' })).toThrow(/LLM_GATEWAY_URL/);
+    expect(() => loadConfig({ DEV_USERS: devUsers, LLM_GATEWAY_URL: 'https://llm.example' })).toThrow(/API_GATEWAY_KEY/);
+    expect(() => loadConfig({ DEV_USERS: devUsers, API_GATEWAY_KEY: 'k', LLM_GATEWAY_URL: 'http://llm.example' })).toThrow(/https/);
+    expect(() => loadConfig({ DEV_USERS: devUsers, API_GATEWAY_KEY: 'k', LLM_GATEWAY_URL: 'nope' })).toThrow(/URL/);
+  });
+
   it('rejects bad values', () => {
     expect(() => loadConfig({ THOUGHTSPOT_HOST: 'http://insecure.example' })).toThrow(/https/);
     expect(() => loadConfig({ THOUGHTSPOT_HOST: 'not a url' })).toThrow(/URL/);

@@ -1,9 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
-import { UpstreamError, type Authenticator } from './auth.ts';
+import { AgentError, runChat, type ChatMessage } from './agent/chat.ts';
+import { CataloguePluginSchema } from './agent/tools.ts';
+import { UpstreamError, type Authenticator, type FetchLike } from './auth.ts';
 import type { Config, Identity } from './config.ts';
 import { applyBaseHeaders, clientIp, HttpError, readJson, sendEmpty, sendJson } from './http.ts';
-import { LayoutSchema, type LayoutStore } from './layouts.ts';
+import { LayoutSchema, type Layout, type LayoutStore } from './layouts.ts';
 import type { RateLimiter } from './rateLimit.ts';
 import { clearSessionCookie, parseCookies, SESSION_COOKIE, sessionCookie, type SessionStore } from './sessions.ts';
 
@@ -15,6 +17,21 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 const LoginSchema = z.object({ token: z.string().min(1).max(MAX_TOKEN_LENGTH) });
 
+const MAX_CHAT_MESSAGE = 4000;
+const MAX_CHAT_HISTORY = 20;
+const MAX_CATALOGUE = 200;
+
+const ChatSchema = z.object({
+  message: z.string().min(1).max(MAX_CHAT_MESSAGE),
+  history: z
+    .array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(MAX_CHAT_MESSAGE) }))
+    .max(MAX_CHAT_HISTORY)
+    .default([]),
+  catalogue: z.array(CataloguePluginSchema).max(MAX_CATALOGUE).default([])
+});
+
+const EMPTY_LAYOUT: Layout = { version: 1, panels: [], suites: {}, groups: [], preferences: {} };
+
 export type Logger = (message: string, error?: unknown) => void;
 
 export interface AppDeps {
@@ -24,6 +41,8 @@ export interface AppDeps {
   layouts: LayoutStore;
   limiter: RateLimiter;
   loginLimiter: RateLimiter;
+  chatLimiter: RateLimiter;
+  gatewayFetch?: FetchLike;
   log?: Logger;
 }
 
@@ -120,12 +139,42 @@ export function createApp(deps: AppDeps): Handler {
         return sendEmpty(res, 204);
       }
 
+      if (pathname === '/api/chat' && method === 'POST') {
+        if (!config.gateway) throw new HttpError(503, 'chat_disabled');
+        if (!deps.chatLimiter.allow(clientIp(req))) throw new HttpError(429, 'rate_limited');
+        const parsed = ChatSchema.safeParse(await readJson(req));
+        if (!parsed.success) throw new HttpError(400, 'invalid_body');
+        const layout = (await deps.layouts.read(identity.id)) ?? EMPTY_LAYOUT;
+        const result = await runChat(
+          {
+            message: parsed.data.message,
+            history: parsed.data.history as ChatMessage[],
+            catalogue: parsed.data.catalogue,
+            layout,
+            user: identity
+          },
+          config.gateway,
+          deps.gatewayFetch
+        );
+        if (result.changed) await deps.layouts.write(identity.id, result.layout);
+        return sendJson(res, 200, {
+          reply: result.reply,
+          changed: result.changed,
+          actions: result.actions,
+          ...(result.changed ? { layout: result.layout } : {})
+        });
+      }
+
       throw new HttpError(404, 'not_found');
     } catch (error) {
       if (error instanceof HttpError) return sendJson(res, error.status, { error: error.code });
       if (error instanceof UpstreamError) {
         log('authentication upstream failed', error);
         return sendJson(res, 502, { error: 'auth_unavailable' });
+      }
+      if (error instanceof AgentError) {
+        log('chat agent failed', error);
+        return sendJson(res, 502, { error: 'agent_unavailable' });
       }
       log('unhandled request error', error);
       return sendJson(res, 500, { error: 'internal_error' });

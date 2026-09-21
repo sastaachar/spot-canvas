@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, fetchMe, remoteLayoutBackend, signIn, signOut } from './api';
+import { ApiError, fetchMe, remoteLayoutBackend, sendChat, signIn, signOut } from './api';
 
 const user = { id: 'u1', name: 'alice', displayName: 'Alice' };
 const fetchMock = vi.fn();
@@ -76,5 +76,21 @@ describe('api client', () => {
     expect(lastCall().init).toMatchObject({ method: 'PUT', body: '{"version":1,"panels":[]}' });
     fetchMock.mockResolvedValueOnce(reply(400));
     await expect(remoteLayoutBackend.write('{}')).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe('sendChat', () => {
+  it('posts message, history and catalogue and maps status codes to messages', async () => {
+    fetchMock.mockResolvedValueOnce(reply(200, { reply: 'ok', changed: false, actions: [] }));
+    const catalogue = [{ id: 'a.b', name: 'A', kind: 'widget', size: [200, 120] as [number, number] }];
+    expect(await sendChat('hi', [{ role: 'user', content: 'earlier' }], catalogue)).toEqual({ reply: 'ok', changed: false, actions: [] });
+    const { url, init } = lastCall();
+    expect(url).toBe('/api/chat');
+    expect(JSON.parse(String(init.body))).toEqual({ message: 'hi', history: [{ role: 'user', content: 'earlier' }], catalogue });
+
+    for (const [status, pattern] of [[503, /not configured/], [429, /busy/], [502, /reach the model/], [500, /could not answer/]] as const) {
+      fetchMock.mockResolvedValueOnce(reply(status));
+      await expect(sendChat('x', [], [])).rejects.toThrow(pattern);
+    }
   });
 });

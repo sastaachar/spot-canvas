@@ -7,9 +7,10 @@ interface Step {
 
 interface State {
   current: number;
+  steps?: Step[];
 }
 
-const STEPS: Step[] = [
+const DEFAULT_STEPS: Step[] = [
   { title: 'Cut the branch', detail: 'Create release/1.0 from main and push it.' },
   { title: 'Run the smoke suite', detail: 'All 12 smoke tests must pass on the release branch.' },
   { title: 'Write release notes', detail: 'Summarise merged PRs since the last tag.' },
@@ -35,7 +36,7 @@ export default definePlugin({
   manifest: {
     apiVersion: 1,
     id: 'spotcanvas.workflow',
-    name: 'Release checklist',
+    name: 'Workflow',
     kind: 'workflow',
     version: '0.1.0',
     size: [320, 300],
@@ -44,10 +45,12 @@ export default definePlugin({
   mount(host, api) {
     api.ui.style(CSS);
     const state = api.storage.get<State>() ?? { current: 0 };
+    const stepsOf = (): Step[] => (state.steps && state.steps.length > 0 ? state.steps : DEFAULT_STEPS);
     const root = h('div', 'tb-wf');
     host.append(root);
 
     const render = () => {
+      const STEPS = stepsOf();
       root.replaceChildren();
       const done = state.current >= STEPS.length;
 
@@ -84,7 +87,7 @@ export default definePlugin({
     const commit = (current: number) => {
       state.current = current;
       api.storage.set(state);
-      api.events.emit('workflow:step', { step: current, total: STEPS.length });
+      api.events.emit('workflow:step', { step: current, total: stepsOf().length });
       render();
     };
 

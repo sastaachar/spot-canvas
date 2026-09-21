@@ -61,3 +61,32 @@ export const remoteLayoutBackend: LayoutBackend = {
     if (!res.ok) throw new ApiError(res.status, 'Could not save your homepage.');
   }
 };
+
+export interface ChatTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatCataloguePlugin {
+  id: string;
+  name: string;
+  kind: string;
+  size: [number, number];
+  suiteId?: string | null;
+}
+
+export interface ChatReply {
+  reply: string;
+  changed: boolean;
+  actions: string[];
+  layout?: unknown;
+}
+
+export async function sendChat(message: string, history: ChatTurn[], catalogue: ChatCataloguePlugin[]): Promise<ChatReply> {
+  const res = await call('/chat', { method: 'POST', body: JSON.stringify({ message, history, catalogue }) });
+  if (res.status === 503) throw new ApiError(res.status, 'Spotter chat is not configured on this server.');
+  if (res.status === 429) throw new ApiError(res.status, 'Spotter is busy. Try again in a minute.');
+  if (res.status === 502) throw new ApiError(res.status, 'Spotter could not reach the model.');
+  if (!res.ok) throw new ApiError(res.status, 'Spotter could not answer.');
+  return (await res.json()) as ChatReply;
+}

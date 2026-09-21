@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { attachPersistence, parseLayout, parseLayoutDocument, restoreLayout, serializeLayout, type LayoutBackend } from './persistence';
+import {
+  applyLayoutDocument,
+  attachPersistence,
+  parseLayout,
+  parseLayoutDocument,
+  restoreLayout,
+  serializeLayout,
+  type LayoutBackend
+} from './persistence';
 import { usePluginRegistry } from './registry';
 import { useCanvasStore, type PanelState } from './store';
 import { useToastStore } from './toasts';
@@ -138,5 +146,16 @@ describe('suites in the layout document', () => {
     await vi.advanceTimersByTimeAsync(500);
     expect(parseLayoutDocument(backend.value)?.suites['acme.suite']).toEqual({ url: null, settings: { host: 'https://x' }, configured: true });
     detach();
+  });
+});
+
+describe('applyLayoutDocument', () => {
+  it('hydrates from an object or a JSON string and rejects garbage', async () => {
+    expect(await applyLayoutDocument({ version: 1, panels: [panel], groups: [], preferences: { theme: 'dark' } })).toBe(true);
+    expect(useCanvasStore.getState().panels[panel.iid]).toEqual(panel);
+    expect(useCanvasStore.getState().preferences.theme).toBe('dark');
+    expect(await applyLayoutDocument(JSON.stringify({ version: 1, panels: [] }))).toBe(true);
+    expect(useCanvasStore.getState().panels).toEqual({});
+    expect(await applyLayoutDocument({ nope: true })).toBe(false);
   });
 });
