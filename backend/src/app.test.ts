@@ -207,6 +207,21 @@ describe('layouts', () => {
     expect((await api('/api/layout', {}, bob)).status).toBe(204);
   });
 
+  it('stores suite state alongside panels and validates suite urls', async () => {
+    const alice = (await login(ALICE)).cookie;
+    const withSuites = {
+      ...layout,
+      suites: { 'acme.suite': { url: 'https://plugins.example.com/acme.js', settings: { host: 'https://x', retries: 3, dark: true }, configured: true } }
+    };
+    const put = await api('/api/layout', { method: 'PUT', headers: { ...json, ...csrf }, body: JSON.stringify(withSuites) }, alice);
+    expect(put.status).toBe(204);
+    expect(await (await api('/api/layout', {}, alice)).json()).toEqual(withSuites);
+
+    const insecure = { ...layout, suites: { 'acme.suite': { url: 'http://plugins.example.com/acme.js', settings: {}, configured: false } } };
+    const bad = await api('/api/layout', { method: 'PUT', headers: { ...json, ...csrf }, body: JSON.stringify(insecure) }, alice);
+    expect(bad.status).toBe(400);
+  });
+
   it('rejects layouts that fail validation', async () => {
     const alice = (await login(ALICE)).cookie;
     const bad = await api(

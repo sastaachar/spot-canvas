@@ -12,7 +12,7 @@ const manifest: PluginManifest = {
   permissions: []
 };
 
-const reset = () => useCanvasStore.setState({ panels: {}, seq: 0, nextZ: 1, drawerOpen: false, drawerTab: 'browse' });
+const reset = () => useCanvasStore.setState({ panels: {}, suites: {}, seq: 0, nextZ: 1, drawerOpen: false, drawerTab: 'browse' });
 
 describe('canvas store', () => {
   beforeEach(reset);
@@ -95,6 +95,21 @@ describe('canvas store', () => {
     const next = useCanvasStore.getState().addPanel(manifest);
     expect(next).toBe('test.widget#8');
     expect(useCanvasStore.getState().panels[next]!.z).toBe(5);
+  });
+
+  it('tracks suite sources and merges settings without losing the url', () => {
+    const s = useCanvasStore.getState();
+    s.trackSuite('a.s', 'https://p.example/a.js');
+    expect(useCanvasStore.getState().suites['a.s']).toEqual({ url: 'https://p.example/a.js', settings: {}, configured: false });
+    s.configureSuite('a.s', { host: 'x' });
+    s.configureSuite('a.s', { retries: 2 });
+    expect(useCanvasStore.getState().suites['a.s']).toEqual({ url: 'https://p.example/a.js', settings: { host: 'x', retries: 2 }, configured: true });
+    s.trackSuite('a.s', null);
+    expect(useCanvasStore.getState().suites['a.s']).toMatchObject({ url: null, configured: true });
+    s.configureSuite('b.s', {});
+    expect(useCanvasStore.getState().suites['b.s']).toEqual({ url: null, settings: {}, configured: true });
+    s.hydrate([], { 'c.s': { url: null, settings: {}, configured: false } });
+    expect(Object.keys(useCanvasStore.getState().suites)).toEqual(['c.s']);
   });
 
   it('toggles the drawer and switches tab only when asked', () => {

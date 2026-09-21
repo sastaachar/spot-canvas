@@ -3,6 +3,7 @@ import { Canvas } from './components/Canvas';
 import { ContextMenu } from './components/ContextMenu';
 import { PluginDrawer } from './components/PluginDrawer';
 import { SignIn } from './components/SignIn';
+import { SuiteSetup } from './components/SuiteSetup';
 import { Toasts } from './components/Toasts';
 import { remoteLayoutBackend } from './core/api';
 import { attachPersistence, restoreLayout } from './core/persistence';
@@ -55,6 +56,7 @@ export function App() {
       <PluginDrawer />
       <Canvas />
       <ContextMenu />
+      <SuiteSetup />
       <Toasts />
     </div>
   );

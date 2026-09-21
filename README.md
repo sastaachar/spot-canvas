@@ -93,3 +93,50 @@ A plugin gets two things: its host element and `api`. Everything else goes throu
 Each panel mounts inside its own shadow root, so plugin CSS cannot leak out and app CSS cannot leak in. Design tokens (`--bg`, `--ink`, `--accent`, `--border`, `--muted`, `--surface`) inherit through the boundary, and the `.tb-btn` / `.tb-btn--primary` classes are available inside every panel.
 
 Load a plugin you are developing from the canvas menu: right-click, "Load plugin from URL…", and point it at an `https://` ES module.
+
+## Right-click menu
+
+Everything on the homepage is driven from the context menu; there is no toolbar.
+
+- **Canvas:** *Add plugin ▸* (standalone plugins first, then one group per suite; the panel lands where you clicked), *Suites ▸* (each suite's settings, marked `configured` or `needs setup`), *Load plugin from URL…*, *Clear homepage*, *Sign out*.
+- **Panel header:** *Bring to front*, the owning suite's *settings…*, *Remove*.
+- Right-clicking inside a plugin's body keeps the browser's own menu, so copy and paste still work.
+
+## Suites
+
+A suite publishes several plugins as one module and declares what it needs from the person adding it. Those details are collected once per user and stored with their layout; every plugin in the suite reads them through `api.settings.get()`.
+
+```ts
+import { defineSuite } from '@spot-canvas/sdk';
+import liveboard from './liveboard';
+import answer from './answer';
+
+export default defineSuite({
+  manifest: {
+    apiVersion: 1,
+    id: 'thoughtspot.suite',
+    name: 'ThoughtSpot',
+    version: '0.1.0',
+    description: 'Liveboards, answers and Spotter from your cluster',
+    settings: [
+      { key: 'host',  label: 'Cluster URL', type: 'url',    required: true },
+      { key: 'token', label: 'Token',       type: 'secret', required: true }
+    ]
+  },
+  plugins: [liveboard, answer],
+  // Optional. When present the suite owns the setup step: render a login here and
+  // call api.complete({ host, token }) when done, or api.cancel().
+  setup(host, api) {
+    const button = document.createElement('button');
+    button.textContent = 'Log in to ThoughtSpot';
+    button.onclick = async () => api.complete(await loginSomehow());
+    host.append(button);
+  }
+});
+```
+
+Field types: `text`, `url`, `secret`, `number`, `boolean`, `select` (with `options`). Without `setup`, Spot Canvas renders a form from `settings`. With `setup`, the suite draws its own step and `api.complete()` is checked against the `required` fields before it is accepted.
+
+The first time someone adds a plugin from a suite that still needs setup, the setup dialog opens and the panel is added once it completes. Settings can be changed later from *Suites ▸* or a panel's menu. A suite loaded from a URL is remembered and reloaded from that URL the next time the homepage opens.
+
+Suite settings, including `secret` fields, are stored server-side in the user's layout document and sent to that user's browser; they are never shared between users.

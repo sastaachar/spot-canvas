@@ -1,4 +1,4 @@
-import type { PluginManifest } from '@spot-canvas/sdk';
+import type { PluginManifest, SuiteSettings } from '@spot-canvas/sdk';
 import { MIN_PANEL_HEIGHT, MIN_PANEL_WIDTH } from '@spot-canvas/sdk';
 import { create } from 'zustand';
 
@@ -16,10 +16,17 @@ export interface PanelState {
 
 export type DrawerTab = 'browse' | 'developer';
 
+export interface SuiteState {
+  url: string | null;
+  settings: SuiteSettings;
+  configured: boolean;
+}
+
 export type PanelPlacement = Partial<Pick<PanelState, 'x' | 'y' | 'w' | 'h' | 'data'>>;
 
 interface CanvasState {
   panels: Record<string, PanelState>;
+  suites: Record<string, SuiteState>;
   seq: number;
   nextZ: number;
   drawerOpen: boolean;
@@ -32,7 +39,9 @@ interface CanvasState {
   setPanelData(iid: string, data: unknown): void;
   setPanelTitle(iid: string, title: string | null): void;
   clearPanels(): void;
-  hydrate(panels: PanelState[]): void;
+  trackSuite(id: string, url: string | null): void;
+  configureSuite(id: string, settings: SuiteSettings): void;
+  hydrate(panels: PanelState[], suites?: Record<string, SuiteState>): void;
   setDrawer(open: boolean, tab?: DrawerTab): void;
 }
 
@@ -41,6 +50,7 @@ const STAGGER = 28;
 
 export const useCanvasStore = create<CanvasState>()((set, get) => ({
   panels: {},
+  suites: {},
   seq: 0,
   nextZ: 1,
   drawerOpen: false,
@@ -109,7 +119,22 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
     set({ panels: {} });
   },
 
-  hydrate(list) {
+  trackSuite(id, url) {
+    const existing = get().suites[id];
+    set({ suites: { ...get().suites, [id]: { url, settings: existing?.settings ?? {}, configured: existing?.configured ?? false } } });
+  },
+
+  configureSuite(id, settings) {
+    const existing = get().suites[id];
+    set({
+      suites: {
+        ...get().suites,
+        [id]: { url: existing?.url ?? null, settings: { ...existing?.settings, ...settings }, configured: true }
+      }
+    });
+  },
+
+  hydrate(list, suites = {}) {
     const panels: Record<string, PanelState> = {};
     let seq = 0;
     let nextZ = 1;
@@ -119,7 +144,7 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
       if (Number.isFinite(n)) seq = Math.max(seq, n);
       nextZ = Math.max(nextZ, p.z + 1);
     }
-    set({ panels, seq, nextZ });
+    set({ panels, suites, seq, nextZ });
   },
 
   setDrawer(open, tab) {

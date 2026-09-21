@@ -3,6 +3,7 @@ import { createPluginApi, EventBus } from '../core/host';
 import { useMenuStore } from '../core/menu';
 import { getPlugin } from '../core/registry';
 import { useCanvasStore, type PanelState } from '../core/store';
+import { settingsForPlugin } from '../core/suites';
 import { currentTheme, onThemeChange } from '../core/theme';
 import { useToastStore } from '../core/toasts';
 import pluginBaseCss from '../styles/plugin-base.css?inline';
@@ -56,7 +57,8 @@ export function Panel({ panel }: Props) {
       setTitle: store.setPanelTitle,
       notify: useToastStore.getState().push,
       theme: currentTheme,
-      onThemeChange
+      onThemeChange,
+      getSettings: () => settingsForPlugin(panel.pluginId)
     });
     let unmount: (() => void) | void;
     try {

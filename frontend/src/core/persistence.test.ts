@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { attachPersistence, parseLayout, restoreLayout, serializeLayout, type LayoutBackend } from './persistence';
+import { attachPersistence, parseLayout, parseLayoutDocument, restoreLayout, serializeLayout, type LayoutBackend } from './persistence';
+import { usePluginRegistry } from './registry';
 import { useCanvasStore, type PanelState } from './store';
 import { useToastStore } from './toasts';
 
@@ -19,7 +20,7 @@ const memoryBackend = (): LayoutBackend & { value: string | null } => {
 };
 
 beforeEach(() => {
-  useCanvasStore.setState({ panels: {}, seq: 0, nextZ: 1 });
+  useCanvasStore.setState({ panels: {}, suites: {}, seq: 0, nextZ: 1 });
   useToastStore.setState({ toasts: [] });
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
@@ -89,6 +90,46 @@ describe('attachPersistence', () => {
     useCanvasStore.getState().hydrate([panel]);
     await vi.advanceTimersByTimeAsync(500);
     expect(useToastStore.getState().toasts[0]?.message).toContain('could not be saved');
+    detach();
+  });
+});
+
+describe('suites in the layout document', () => {
+  const suites = { 'acme.suite': { url: 'https://p.example/acme.js', settings: { host: 'https://x' }, configured: true } };
+
+  it('round-trips suite state and tolerates documents without it', () => {
+    const doc = parseLayoutDocument(serializeLayout({ [panel.iid]: panel }, suites));
+    expect(doc).toEqual({ panels: [panel], suites });
+    expect(parseLayoutDocument(JSON.stringify({ version: 1, panels: [] }))).toEqual({ panels: [], suites: {} });
+    expect(parseLayoutDocument(JSON.stringify({ version: 1, panels: [], suites: { a: { url: 1 } } }))).toBeNull();
+  });
+
+  it('loads suite modules from their urls before hydrating, and toasts when one fails', async () => {
+    const loadFromUrl = vi.fn(async (url: string) => {
+      if (url.includes('bad')) throw new Error('offline');
+      return {} as never;
+    });
+    usePluginRegistry.setState({ loadFromUrl, suites: { 'already.loaded': {} as never } });
+    const backend = memoryBackend();
+    backend.value = serializeLayout({}, {
+      ...suites,
+      'bad.suite': { url: 'https://p.example/bad.js', settings: {}, configured: false },
+      'already.loaded': { url: 'https://p.example/loaded.js', settings: {}, configured: true },
+      'local.suite': { url: null, settings: {}, configured: true }
+    });
+    expect(await restoreLayout(backend)).toBe(true);
+    expect(loadFromUrl.mock.calls.map(([u]) => u).sort()).toEqual(['https://p.example/acme.js', 'https://p.example/bad.js']);
+    expect(Object.keys(useCanvasStore.getState().suites)).toHaveLength(4);
+    expect(useToastStore.getState().toasts[0]?.message).toContain('bad.suite');
+  });
+
+  it('persists suite changes too', async () => {
+    vi.useFakeTimers();
+    const backend = memoryBackend();
+    const detach = attachPersistence(backend);
+    useCanvasStore.getState().configureSuite('acme.suite', { host: 'https://x' });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(parseLayoutDocument(backend.value)?.suites['acme.suite']).toEqual({ url: null, settings: { host: 'https://x' }, configured: true });
     detach();
   });
 });

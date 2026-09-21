@@ -21,9 +21,38 @@ export const PanelSchema = z.object({
   title: z.string().max(MAX_TITLE_LENGTH).nullable().optional()
 });
 
+const MAX_SUITES = 50;
+const MAX_SETTINGS_PER_SUITE = 40;
+const MAX_SETTING_VALUE_LENGTH = 4096;
+const MAX_URL_LENGTH = 2048;
+
+const isLoadableUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || (url.protocol === 'http:' && url.hostname === 'localhost');
+  } catch {
+    return false;
+  }
+};
+
+export const SuiteStateSchema = z.object({
+  url: z.string().max(MAX_URL_LENGTH).refine(isLoadableUrl, 'suite url must be https').nullable(),
+  settings: z
+    .record(
+      z.string().min(1).max(MAX_ID_LENGTH),
+      z.union([z.string().max(MAX_SETTING_VALUE_LENGTH), z.number().finite(), z.boolean()])
+    )
+    .refine((r) => Object.keys(r).length <= MAX_SETTINGS_PER_SUITE, 'too many settings'),
+  configured: z.boolean()
+});
+
 export const LayoutSchema = z.object({
   version: z.literal(1),
-  panels: z.array(PanelSchema).max(MAX_PANELS)
+  panels: z.array(PanelSchema).max(MAX_PANELS),
+  suites: z
+    .record(z.string().min(1).max(MAX_ID_LENGTH), SuiteStateSchema)
+    .refine((r) => Object.keys(r).length <= MAX_SUITES, 'too many suites')
+    .optional()
 });
 
 export type Layout = z.infer<typeof LayoutSchema>;

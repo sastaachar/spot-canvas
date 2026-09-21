@@ -471,22 +471,66 @@ textarea {
 
 .menu {
   position: fixed;
-  min-width: 200px;
+  min-width: 220px;
   padding: 4px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  display: grid;
   z-index: 50;
 }
 
+.menu__list {
+  display: grid;
+}
+
+.menu--flyout {
+  position: absolute;
+  top: -5px;
+  left: calc(100% - 2px);
+  max-height: min(70vh, 480px);
+  overflow-y: auto;
+}
+
+.menu__sub {
+  position: relative;
+}
+
 .menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
   text-align: left;
   padding: 6px 10px;
   border-radius: 4px;
   font-size: 13px;
   white-space: nowrap;
+}
+
+.menu__sub.is-open > .menu__item {
+  background: var(--surface-2);
+}
+
+.menu__chevron,
+.menu__hint {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.menu__hint {
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+}
+
+.menu__heading {
+  padding: 6px 10px 2px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
 }
 
 .menu__item:hover:not(:disabled),
@@ -562,4 +606,106 @@ textarea {
 .signin__error {
   color: var(--negative);
   font-size: 13px;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(20, 18, 15, 0.35);
+  z-index: 60;
+}
+
+.modal__card {
+  width: min(440px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal__head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.modal__head p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.modal__head button {
+  color: var(--muted);
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+}
+
+.setup {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.setup__field {
+  display: grid;
+  gap: 4px;
+}
+
+.setup__field.is-inline {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.setup__field.is-inline label {
+  order: 2;
+}
+
+.setup__field label {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.setup__field input:not([type='checkbox']),
+.setup__field select {
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 10px;
+  background: var(--surface);
+  font: inherit;
+  color: inherit;
+}
+
+.setup__field small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.setup__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.setup__custom {
+  padding: 16px;
+  min-height: 80px;
 }

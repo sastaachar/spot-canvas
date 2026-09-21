@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { useCanvasStore, type PanelState } from './store';
+import { usePluginRegistry } from './registry';
+import { useCanvasStore, type PanelState, type SuiteState } from './store';
 import { useToastStore } from './toasts';
 
 const WRITE_DEBOUNCE_MS = 300;
@@ -18,25 +19,61 @@ const PanelSchema = z.object({
   title: z.string().nullable().optional()
 });
 
-const LayoutSchema = z.object({ version: z.literal(1), panels: z.array(PanelSchema) });
+const SuiteStateSchema = z.object({
+  url: z.string().nullable(),
+  settings: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
+  configured: z.boolean()
+});
+
+const LayoutSchema = z.object({
+  version: z.literal(1),
+  panels: z.array(PanelSchema),
+  suites: z.record(z.string(), SuiteStateSchema).optional()
+});
+
+export interface LayoutDocument {
+  panels: PanelState[];
+  suites: Record<string, SuiteState>;
+}
 
 export interface LayoutBackend {
   read(): Promise<string | null>;
   write(json: string): Promise<void>;
 }
 
-export function parseLayout(json: string | null): PanelState[] | null {
+export function parseLayoutDocument(json: string | null): LayoutDocument | null {
   if (!json) return null;
   try {
     const result = LayoutSchema.safeParse(JSON.parse(json));
-    return result.success ? (result.data.panels as PanelState[]) : null;
+    if (!result.success) return null;
+    return { panels: result.data.panels as PanelState[], suites: result.data.suites ?? {} };
   } catch {
     return null;
   }
 }
 
-export function serializeLayout(panels: Record<string, PanelState>): string {
-  return JSON.stringify({ version: 1, panels: Object.values(panels) });
+export function parseLayout(json: string | null): PanelState[] | null {
+  return parseLayoutDocument(json)?.panels ?? null;
+}
+
+export function serializeLayout(panels: Record<string, PanelState>, suites: Record<string, SuiteState> = {}): string {
+  return JSON.stringify({ version: 1, panels: Object.values(panels), suites });
+}
+
+async function loadSuiteModules(suites: Record<string, SuiteState>): Promise<void> {
+  const { loadFromUrl, suites: loaded } = usePluginRegistry.getState();
+  await Promise.all(
+    Object.entries(suites)
+      .filter(([id, state]) => state.url !== null && !loaded[id])
+      .map(async ([id, state]) => {
+        try {
+          await loadFromUrl(state.url as string);
+        } catch (error) {
+          console.warn(`[spot-canvas] suite ${id} could not be loaded`, error);
+          useToastStore.getState().push(`Suite ${id} could not be loaded from its URL.`, 'error', SYSTEM);
+        }
+      })
+  );
 }
 
 export async function restoreLayout(backend: LayoutBackend): Promise<boolean> {
@@ -48,20 +85,22 @@ export async function restoreLayout(backend: LayoutBackend): Promise<boolean> {
     useToastStore.getState().push('Your saved homepage could not be loaded.', 'error', SYSTEM);
     return false;
   }
-  const panels = parseLayout(stored);
-  if (!panels) return false;
-  useCanvasStore.getState().hydrate(panels);
+  const doc = parseLayoutDocument(stored);
+  if (!doc) return false;
+  await loadSuiteModules(doc.suites);
+  useCanvasStore.getState().hydrate(doc.panels, doc.suites);
   return true;
 }
 
 export function attachPersistence(backend: LayoutBackend): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
   const unsubscribe = useCanvasStore.subscribe((state, prev) => {
-    if (state.panels === prev.panels) return;
+    if (state.panels === prev.panels && state.suites === prev.suites) return;
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
-      backend.write(serializeLayout(useCanvasStore.getState().panels)).catch((error: unknown) => {
+      const { panels, suites } = useCanvasStore.getState();
+      backend.write(serializeLayout(panels, suites)).catch((error: unknown) => {
         console.warn('[spot-canvas] layout save failed', error);
         useToastStore.getState().push(SAVE_FAILED, 'error', SYSTEM);
       });

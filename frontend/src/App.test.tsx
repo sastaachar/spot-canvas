@@ -27,13 +27,15 @@ vi.mock('./core/api', () => ({
   }
 }));
 
+import { definePlugin, defineSuite, type SuiteSetupApi } from '@spot-canvas/sdk';
 import { App } from './App';
 import { registerBuiltins } from './core/builtins';
 import { useMenuStore } from './core/menu';
-import { parseLayout, serializeLayout } from './core/persistence';
-import { getPlugin } from './core/registry';
+import { parseLayout, parseLayoutDocument, serializeLayout } from './core/persistence';
+import { getPlugin, usePluginRegistry } from './core/registry';
 import { useSession } from './core/session';
 import { useCanvasStore, type PanelState } from './core/store';
+import { useSetupStore } from './core/suites';
 import { useToastStore } from './core/toasts';
 
 const user = { id: 'u1', name: 'alice', displayName: 'Alice' };
@@ -49,8 +51,10 @@ const notePanel: PanelState = {
 };
 
 beforeEach(() => {
+  usePluginRegistry.setState({ plugins: {}, suites: {}, suiteOf: {} });
   registerBuiltins();
-  useCanvasStore.setState({ panels: {}, seq: 0, nextZ: 1, drawerOpen: false, drawerTab: 'browse' });
+  useSetupStore.setState({ suiteId: null, onDone: null });
+  useCanvasStore.setState({ panels: {}, suites: {}, seq: 0, nextZ: 1, drawerOpen: false, drawerTab: 'browse' });
   useToastStore.setState({ toasts: [] });
   useMenuStore.setState({ open: false });
   useSession.setState({ status: 'loading', user: null, error: null });
@@ -65,6 +69,11 @@ afterEach(cleanup);
 const shadowOf = (panel: HTMLElement) => panel.querySelector('.panel__body')!.shadowRoot!;
 const canvas = () => screen.getByRole('main');
 const menuItem = (name: string | RegExp) => screen.getByRole('menuitem', { name });
+const openAddMenu = () => {
+  fireEvent.click(menuItem('Add plugin'));
+  return screen.getByRole('menu', { name: 'Add plugin' });
+};
+const addFromMenu = (name: string) => fireEvent.click(within(openAddMenu()).getByRole('menuitem', { name: new RegExp(`^${name}`) }));
 
 async function renderSignedIn() {
   render(<App />);
@@ -119,7 +128,7 @@ describe('canvas', () => {
 
     fireEvent.contextMenu(canvas(), { clientX: 300, clientY: 200 });
     expect(screen.getByRole('menu')).toBeTruthy();
-    fireEvent.click(menuItem('Add Sticky note'));
+    addFromMenu('Sticky note');
     expect(screen.queryByRole('menu')).toBeNull();
 
     const panel = screen.getByRole('region', { name: 'Sticky note' });
@@ -228,5 +237,139 @@ describe('canvas', () => {
     });
     expect(screen.queryByText('Saved')).toBeNull();
     vi.useRealTimers();
+  });
+});
+
+const hello = definePlugin({
+  manifest: { apiVersion: 1, id: 'acme.hello', name: 'Hello', kind: 'widget', version: '0.1.0', size: [240, 160] },
+  mount(host, api) {
+    const p = document.createElement('p');
+    p.className = 'hello-host';
+    p.textContent = `host=${String(api.settings.get()['host'] ?? 'unset')}`;
+    host.append(p);
+  }
+});
+
+const formSuite = () =>
+  defineSuite({
+    manifest: {
+      apiVersion: 1,
+      id: 'acme.suite',
+      name: 'Acme',
+      version: '0.1.0',
+      description: 'Needs a server',
+      settings: [
+        { key: 'host', label: 'Server URL', type: 'url', required: true, help: 'Where Acme runs' },
+        { key: 'retries', label: 'Retries', type: 'number' },
+        { key: 'dark', label: 'Dark charts', type: 'boolean' },
+        { key: 'region', label: 'Region', type: 'select', options: [{ value: 'eu', label: 'Europe' }] }
+      ]
+    },
+    plugins: [hello]
+  });
+
+describe('suites', () => {
+  it('groups suite plugins in the add menu and asks for required settings before adding', async () => {
+    usePluginRegistry.getState().registerSuite(formSuite());
+    await renderSignedIn();
+
+    fireEvent.contextMenu(canvas(), { clientX: 40, clientY: 40 });
+    const add = openAddMenu();
+    expect(within(add).getByText('Acme')).toBeTruthy();
+    fireEvent.click(within(add).getByRole('menuitem', { name: /^Hello/ }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Set up Acme' });
+    expect(screen.queryByRole('region', { name: 'Hello' })).toBeNull();
+
+    fireEvent.submit(within(dialog).getByRole('button', { name: 'Save' }).closest('form')!);
+    expect(useToastStore.getState().toasts.at(-1)?.message).toContain('Server URL');
+    expect(screen.getByRole('dialog', { name: 'Set up Acme' })).toBeTruthy();
+
+    fireEvent.change(within(dialog).getByLabelText(/Server URL/), { target: { value: 'https://acme.example' } });
+    fireEvent.change(within(dialog).getByLabelText('Retries'), { target: { value: '3' } });
+    fireEvent.click(within(dialog).getByLabelText('Dark charts'));
+    fireEvent.change(within(dialog).getByLabelText('Region'), { target: { value: 'eu' } });
+    fireEvent.submit(within(dialog).getByRole('button', { name: 'Save' }).closest('form')!);
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    const panel = await screen.findByRole('region', { name: 'Hello' });
+    expect(shadowOf(panel).querySelector('.hello-host')!.textContent).toBe('host=https://acme.example');
+    expect(useCanvasStore.getState().suites['acme.suite']).toEqual({
+      url: null,
+      settings: { host: 'https://acme.example', retries: 3, dark: true, region: 'eu' },
+      configured: true
+    });
+    await vi.waitFor(() => expect(parseLayoutDocument(memory.value)?.suites['acme.suite']?.configured).toBe(true));
+
+    fireEvent.contextMenu(canvas());
+    fireEvent.click(menuItem('Suites'));
+    expect(screen.getByRole('menuitem', { name: /Acme settings…/ }).textContent).toContain('configured');
+  });
+
+  it('adds straight away once configured and reopens settings from a panel', async () => {
+    usePluginRegistry.getState().registerSuite(formSuite());
+    useCanvasStore.getState().configureSuite('acme.suite', { host: 'https://acme.example' });
+    await renderSignedIn();
+
+    fireEvent.contextMenu(canvas());
+    addFromMenu('Hello');
+    const panel = screen.getByRole('region', { name: 'Hello' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    fireEvent.contextMenu(within(panel).getByText('Hello').closest('header')!);
+    fireEvent.click(menuItem(/Acme settings…/));
+    const dialog = screen.getByRole('dialog', { name: 'Set up Acme' });
+    expect((within(dialog).getByLabelText(/Server URL/) as HTMLInputElement).value).toBe('https://acme.example');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('lets a suite own its setup step, e.g. a login, and honours cancel and complete', async () => {
+    let captured: SuiteSetupApi | null = null;
+    const suite = defineSuite({
+      manifest: {
+        apiVersion: 1,
+        id: 'ts.suite',
+        name: 'ThoughtSpot',
+        version: '0.1.0',
+        settings: [{ key: 'host', label: 'Cluster', type: 'url', required: true }]
+      },
+      plugins: [hello],
+      setup(host, api) {
+        captured = api;
+        const b = document.createElement('button');
+        b.textContent = 'Log in';
+        host.append(b);
+      }
+    });
+    usePluginRegistry.getState().registerSuite(suite);
+    await renderSignedIn();
+
+    fireEvent.contextMenu(canvas());
+    addFromMenu('Hello');
+    const dialog = await screen.findByRole('dialog', { name: 'Set up ThoughtSpot' });
+    expect(dialog.querySelector('.setup__custom')!.shadowRoot!.textContent).toContain('Log in');
+
+    act(() => captured!.cancel());
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Hello' })).toBeNull();
+
+    fireEvent.contextMenu(canvas());
+    addFromMenu('Hello');
+    await screen.findByRole('dialog', { name: 'Set up ThoughtSpot' });
+    act(() => captured!.complete({}));
+    expect(useToastStore.getState().toasts.at(-1)?.message).toContain('Cluster');
+    act(() => captured!.complete({ host: 'https://ts.example', token: 'abc' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(await screen.findByRole('region', { name: 'Hello' })).toBeTruthy();
+    expect(useCanvasStore.getState().suites['ts.suite']).toMatchObject({ configured: true, settings: { host: 'https://ts.example', token: 'abc' } });
+  });
+
+  it('shows an empty flyout message when nothing can be added', async () => {
+    usePluginRegistry.setState({ plugins: {}, suites: {}, suiteOf: {} });
+    await renderSignedIn();
+    fireEvent.contextMenu(canvas());
+    const add = openAddMenu();
+    expect(within(add).getByText('Nothing available')).toBeTruthy();
   });
 });

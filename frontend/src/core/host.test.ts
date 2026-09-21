@@ -166,3 +166,30 @@ describe('createPluginApi', () => {
     expect(document.head.querySelectorAll('style[data-spot-canvas-plugin="test.plugin"]')).toHaveLength(1);
   });
 });
+
+describe('settings', () => {
+  it('exposes a frozen copy of the suite settings and an empty object without a provider', () => {
+    const manifest = { apiVersion: 1 as const, id: 'a.b', name: 'A', kind: 'widget' as const, version: '0.1.0', size: [200, 120] as [number, number], permissions: [] };
+    const base = {
+      hostKind: 'web' as const,
+      bus: new EventBus(),
+      styleRoot: document,
+      getData: () => null,
+      setData() {},
+      resize() {},
+      close() {},
+      setTitle() {},
+      notify() {},
+      theme: () => 'light' as const,
+      onThemeChange: () => () => {}
+    };
+    const live = { host: 'https://x' };
+    const withSettings = createPluginApi('a.b#1', manifest, { ...base, getSettings: () => live });
+    const got = withSettings.api.settings.get();
+    expect(got).toEqual({ host: 'https://x' });
+    expect(Object.isFrozen(got)).toBe(true);
+    live.host = 'https://y';
+    expect(withSettings.api.settings.get()['host']).toBe('https://y');
+    expect(createPluginApi('a.b#2', manifest, base).api.settings.get()).toEqual({});
+  });
+});

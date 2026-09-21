@@ -5,6 +5,7 @@ import type {
   PluginApi,
   PluginManifest,
   PluginPermission,
+  SuiteSettings,
   ThemeName
 } from '@spot-canvas/sdk';
 
@@ -61,6 +62,7 @@ export interface HostDeps {
   notify(message: string, kind: NotifyKind, from: string): void;
   theme(): ThemeName;
   onThemeChange(handler: (theme: ThemeName) => void): () => void;
+  getSettings?(): SuiteSettings;
   fetch?: typeof fetch;
 }
 
@@ -164,6 +166,9 @@ export function createPluginApi(iid: string, manifest: PluginManifest, deps: Hos
       onChange(handler) {
         return track(deps.onThemeChange(handler));
       }
+    },
+    settings: {
+      get: () => Object.freeze({ ...(deps.getSettings?.() ?? {}) })
     },
     onUnmount(fn) {
       cleanups.push(fn);
