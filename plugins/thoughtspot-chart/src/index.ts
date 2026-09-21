@@ -5,8 +5,11 @@ import { listen, request, SKIP } from './bridge';
 import {
   buildRequest,
   bundleFolder,
+  editUrl,
+  fetchDiscoveredTsHost,
   parsePayload,
   projectRows,
+  resolveTsHost,
   toChartSource,
   type ChartSource
 } from './chart-source';
@@ -24,9 +27,11 @@ interface State {
   endpoint: string;
   /** where the built valkyrie-charts bundle is served from. */
   bundleBase: string;
+  /** ThoughtSpot URL for "Edit in ThoughtSpot"; derived from a cluster endpoint when empty. */
+  tsHost: string;
 }
 
-const DEFAULTS: State = { answerId: '', endpoint: '/prism', bundleBase: '/valkyrie/' };
+const DEFAULTS: State = { answerId: '', endpoint: '/prism', bundleBase: '/valkyrie/', tsHost: '' };
 
 /** Chart features the bundle reads from its own URL. */
 const CHART_FLAGS = [
@@ -44,7 +49,10 @@ const CHART_FLAGS = [
 const CSS = `
 .ts-chart { display: flex; flex-direction: column; height: 100%; }
 .ts-chart form { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid var(--border); }
+.ts-chart form[hidden] { display: none; }
 .ts-chart input { flex: 1; min-width: 0; height: 28px; border: 1px solid var(--border); border-radius: 4px; padding: 0 8px; background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 11.5px; }
+.ts-chart a.tb-btn { text-decoration: none; display: inline-flex; align-items: center; }
+.ts-chart a.tb-btn[aria-disabled="true"] { pointer-events: none; opacity: 0.5; }
 .ts-chart__hint { padding: 6px 8px 0; color: var(--negative); font-size: 12px; }
 .ts-chart__stage { flex: 1; min-height: 0; position: relative; background: var(--surface); }
 .ts-chart__stage iframe { width: 100%; height: 100%; border: 0; display: block; }
@@ -79,12 +87,53 @@ export default definePlugin({
     input.setAttribute('aria-label', 'ThoughtSpot Answer ID');
     const go = h('button', 'tb-btn tb-btn--primary', 'Load');
     go.type = 'submit';
-    form.append(input, go);
+    const refresh = h('button', 'tb-btn', 'Refresh');
+    refresh.type = 'button';
+    refresh.title = 'Reload the chart with current data';
+    const edit = h('a', 'tb-btn', 'Edit in ThoughtSpot ↗');
+    edit.target = '_blank';
+    edit.rel = 'noopener noreferrer';
+    const settingsToggle = h('button', 'tb-btn', '⚙');
+    settingsToggle.type = 'button';
+    settingsToggle.setAttribute('aria-label', 'Settings');
+    form.append(input, go, refresh, edit, settingsToggle);
+
+    // Settings row: the ThoughtSpot URL used by "Edit in ThoughtSpot" (hidden behind ⚙).
+    const settings = h('form');
+    settings.hidden = true;
+    const tsHostInput = h('input');
+    tsHostInput.type = 'url';
+    tsHostInput.placeholder = 'ThoughtSpot URL, e.g. https://my-cluster.thoughtspot.cloud';
+    tsHostInput.value = state.tsHost;
+    tsHostInput.setAttribute('aria-label', 'ThoughtSpot URL');
+    const saveSettings = h('button', 'tb-btn tb-btn--primary', 'Save');
+    saveSettings.type = 'submit';
+    settings.append(tsHostInput, saveSettings);
+
     const hint = h('div', 'ts-chart__hint');
     hint.hidden = true;
     const stage = h('div', 'ts-chart__stage');
-    root.append(form, hint, stage);
+    root.append(form, settings, hint, stage);
     host.append(root);
+
+    /** Cluster the site's credentials belong to (TS_HOST behind the proxy); user override wins. */
+    let discoveredTsHost = '';
+
+    /** Keeps Refresh / Edit in sync with what is loaded and where the cluster is. */
+    const updateActions = () => {
+      refresh.disabled = !state.answerId;
+      const endpoint = new URL(state.endpoint, document.baseURI);
+      const link = editUrl(resolveTsHost(state.tsHost, endpoint, discoveredTsHost), state.answerId);
+      if (link) {
+        edit.href = link;
+        edit.removeAttribute('aria-disabled');
+        edit.title = 'Open this answer in ThoughtSpot';
+      } else {
+        edit.removeAttribute('href');
+        edit.setAttribute('aria-disabled', 'true');
+        edit.title = state.answerId ? 'Set the ThoughtSpot URL in ⚙ to enable' : 'Load an answer first';
+      }
+    };
 
     let stopListening: (() => void) | null = null;
     let generation = 0;
@@ -203,7 +252,23 @@ export default definePlugin({
       if (!answerId) return;
       state.answerId = answerId;
       api.storage.set(state);
+      updateActions();
       render(answerId).catch(showError);
+    };
+    refresh.onclick = () => {
+      if (state.answerId) render(state.answerId).catch(showError);
+    };
+    settingsToggle.onclick = () => {
+      settings.hidden = !settings.hidden;
+      if (!settings.hidden) tsHostInput.focus();
+    };
+    settings.onsubmit = (e) => {
+      e.preventDefault();
+      state.tsHost = tsHostInput.value.trim();
+      api.storage.set(state);
+      settings.hidden = true;
+      updateActions();
+      api.ui.notify(state.tsHost ? 'ThoughtSpot URL saved.' : 'ThoughtSpot URL cleared.', 'success');
     };
 
     api.theme.onChange(() => {
@@ -214,6 +279,12 @@ export default definePlugin({
       stopListening?.();
     });
 
+    updateActions();
+    fetchDiscoveredTsHost((url) => api.net.fetch(url), new URL(state.endpoint, document.baseURI)).then((tsHost) => {
+      discoveredTsHost = tsHost;
+      tsHostInput.placeholder = tsHost ? `${tsHost} (from the site's config)` : tsHostInput.placeholder;
+      updateActions();
+    });
     if (state.answerId) render(state.answerId).catch(showError);
     else showEmpty('Enter a ThoughtSpot Answer ID above and press Load.');
   }

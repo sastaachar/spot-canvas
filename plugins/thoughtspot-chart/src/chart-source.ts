@@ -84,6 +84,43 @@ export function toChartSource(payload: HostedChartModelPayload): ChartSource {
 /** Folder of the built valkyrie entry for a hosted chart type: advanced_stacked_bar -> stacked-bar. */
 export const bundleFolder = (chartType: string): string => chartType.replace(/^advanced_/, '').replace(/_/g, '-');
 
+/**
+ * ThoughtSpot host to deep-link into, in order of precedence: the user's override,
+ * the host the site reports (`GET /thoughtspot/config`, the cluster its credentials
+ * belong to), else the API endpoint's own origin when it points at a cluster.
+ */
+export function resolveTsHost(configured: string, endpoint: URL, discovered = ''): string {
+  const trim = (s: string) => s.trim().replace(/\/+$/, '');
+  if (configured.trim()) return trim(configured);
+  if (discovered.trim()) return trim(discovered);
+  return /^(localhost|127\.0\.0\.1)$/.test(endpoint.hostname) ? '' : endpoint.origin;
+}
+
+/** The site's ThoughtSpot host, served next to the API proxy; '' when the site has none. */
+export async function fetchDiscoveredTsHost(
+  fetch: (url: URL) => Promise<Response>,
+  endpoint: URL
+): Promise<string> {
+  try {
+    const res = await fetch(new URL('/thoughtspot/config', endpoint));
+    if (!res.ok) return '';
+    const body = (await res.json()) as { tsHost?: unknown };
+    return typeof body.tsHost === 'string' ? body.tsHost : '';
+  } catch {
+    return '';
+  }
+}
+
+/** Link that opens the answer in ThoughtSpot, or null when the host is unknown. */
+export function editUrl(tsHost: string, answerId: string): string | null {
+  if (!tsHost || !answerId) return null;
+  try {
+    return new URL(`#/insights/saved-answer/${encodeURIComponent(answerId)}`, `${tsHost.replace(/\/+$/, '')}/`).toString();
+  } catch {
+    return null;
+  }
+}
+
 /** Projects the rows onto the column ids of one chart query. */
 export function projectRows(source: ChartSource, columnIds: string[]): QueryData {
   return {

@@ -19,8 +19,16 @@ Type an Answer ID, press Load.
 3. Rows are projected onto whatever columns the chart asks for
    (`projectRows`); Measure Names/Values are derived by the chart itself.
 
-Panel storage keeps `{ answerId, endpoint, bundleBase }`. Defaults: `endpoint`
-`/prism` (dev proxy), `bundleBase` `/valkyrie/`. Point `endpoint` at
+Header actions: **Load** (fetch + render), **Refresh** (refetch the same answer),
+**Edit in ThoughtSpot ↗** (opens `<cluster>/#/insights/saved-answer/<id>` in a new tab) and
+**⚙** (override the cluster URL). The cluster comes from the customer's
+configuration, in this order: the ⚙ override, `GET /thoughtspot/config`
+(`{ tsHost }` — the dev server serves the `TS_HOST` its credentials belong to),
+or the API endpoint's origin when the endpoint is the cluster itself.
+
+Panel storage keeps `{ answerId, endpoint, bundleBase, tsHost }`. Defaults:
+`endpoint` `/prism` (dev proxy), `bundleBase` `/valkyrie/`, `tsHost` empty.
+Point `endpoint` at
 `https://<cluster>/api/rest/2.0/metadata/answer/hosted-chart-model` once that
 build is deployed — the plugin switches to the REST body automatically.
 
