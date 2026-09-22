@@ -113,13 +113,17 @@ describe('normaliseClusterUrl', () => {
     expect(normaliseClusterUrl('https://ts.example:8443', false)).toBe('https://ts.example:8443');
   });
 
-  it('rejects blanks, garbage, http and local addresses unless allowed', () => {
+  it('accepts https IP addresses, and rejects blanks, garbage, http and loopback unless allowed', () => {
+    expect(normaliseClusterUrl('10.0.0.4', false)).toBe('https://10.0.0.4');
+    expect(normaliseClusterUrl('https://10.0.0.4:8443/', false)).toBe('https://10.0.0.4:8443');
     expect(() => normaliseClusterUrl('  ', false)).toThrow(ClusterUrlError);
     expect(() => normaliseClusterUrl('http://[::1', false)).toThrow(/not valid/);
     expect(() => normaliseClusterUrl('http://ts.example', false)).toThrow(/https/);
-    expect(() => normaliseClusterUrl('localhost:8443', false)).toThrow(/public https/);
-    expect(() => normaliseClusterUrl('10.0.0.4', false)).toThrow(/public https/);
+    expect(() => normaliseClusterUrl('http://10.0.0.4', false)).toThrow(/https/);
+    expect(() => normaliseClusterUrl('localhost:8443', false)).toThrow(/ALLOW_LOCAL_CLUSTERS/);
+    expect(() => normaliseClusterUrl('127.0.0.1', false)).toThrow(/ALLOW_LOCAL_CLUSTERS/);
     expect(normaliseClusterUrl('http://localhost:8443', true)).toBe('http://localhost:8443');
+    expect(normaliseClusterUrl('http://10.0.0.4:8443', true)).toBe('http://10.0.0.4:8443');
   });
 });
 

@@ -23,7 +23,7 @@ const config = loadConfig();
 const layouts = new LayoutStore(config.dataDir);
 await layouts.init();
 
-const sessions = new SessionStore(config.sessionTtlMs);
+const sessions = new SessionStore(config.sessionTtlMs, Date.now, path.join(config.dataDir, 'sessions.json'));
 const limiter = new RateLimiter(REQUESTS_PER_MINUTE, MINUTE_MS);
 const loginLimiter = new RateLimiter(LOGINS_PER_MINUTE, MINUTE_MS);
 const chatLimiter = new RateLimiter(CHATS_PER_MINUTE, MINUTE_MS);

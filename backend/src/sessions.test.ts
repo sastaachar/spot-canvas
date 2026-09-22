@@ -1,3 +1,6 @@
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { clearSessionCookie, parseCookies, SESSION_COOKIE, sessionCookie, SessionStore } from './sessions.ts';
 
@@ -41,6 +44,61 @@ describe('SessionStore', () => {
     now = 11;
     store.sweep();
     expect(store.size).toBe(0);
+  });
+});
+
+describe('persistence and sliding expiry', () => {
+  it('survives a restart, drops expired entries on load, and ignores a corrupt file', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'sessions-'));
+    const file = path.join(dir, 'nested', 'sessions.json');
+    try {
+      let now = 1000;
+      const first = new SessionStore(500, () => now, file);
+      const cluster = { host: 'https://ts.example', cookie: 'JSESSIONID=abc', expiresAt: 9999 };
+      const keep = first.create(identity, cluster);
+      const drop = first.create(identity);
+      expect(((await stat(file)).mode & 0o777).toString(8)).toBe('600');
+
+      now = 1200;
+      const reloaded = new SessionStore(500, () => now, file);
+      expect(reloaded.get(keep)).toEqual(identity);
+      expect(reloaded.cluster(keep)).toEqual(cluster);
+      expect(reloaded.get(drop)).toEqual(identity);
+
+      now = 1600;
+      const later = new SessionStore(500, () => now, file);
+      expect(later.get(keep)).toBeNull();
+      expect(later.size).toBe(0);
+
+      const { writeFile } = await import('node:fs/promises');
+      await writeFile(file, '{not json', 'utf8');
+      expect(new SessionStore(500, () => now, file).size).toBe(0);
+      await writeFile(file, JSON.stringify({ x: { nope: 1 } }), 'utf8');
+      expect(new SessionStore(500, () => now, file).size).toBe(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('extends a session only once it is past half its life, and persists the extension', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'sessions-'));
+    const file = path.join(dir, 'sessions.json');
+    try {
+      let now = 0;
+      const store = new SessionStore(1000, () => now, file);
+      const sid = store.create(identity);
+      now = 400;
+      expect(store.touch(sid)).toBe(false);
+      now = 600;
+      expect(store.touch(sid)).toBe(true);
+      now = 1500;
+      expect(store.get(sid)).toEqual(identity);
+      const persisted = JSON.parse(await readFile(file, 'utf8')) as Record<string, { expiresAt: number }>;
+      expect(persisted[sid]!.expiresAt).toBe(1600);
+      expect(store.touch('nope')).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 

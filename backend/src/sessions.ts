@@ -1,4 +1,7 @@
 import { randomBytes } from 'node:crypto';
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { z } from 'zod';
 import type { ClusterSession } from './auth.ts';
 import type { Identity } from './config.ts';
 
@@ -12,19 +15,64 @@ interface Session {
   expiresAt: number;
 }
 
+const PersistedSchema = z.record(
+  z.string(),
+  z.object({
+    identity: z.object({ id: z.string(), name: z.string(), displayName: z.string(), cluster: z.string().optional() }),
+    cluster: z.object({ host: z.string(), cookie: z.string(), expiresAt: z.number() }).nullable(),
+    expiresAt: z.number()
+  })
+);
+
+const OWNER_ONLY = 0o600;
+
+/**
+ * Sessions live in memory and, when a file is given, are mirrored to it so a
+ * backend restart does not sign everyone out. The file holds cluster cookies,
+ * so it is owner-readable only.
+ */
 export class SessionStore {
   private readonly sessions = new Map<string, Session>();
   private readonly ttlMs: number;
   private readonly now: () => number;
+  private readonly file: string | null;
 
-  constructor(ttlMs: number, now: () => number = Date.now) {
+  constructor(ttlMs: number, now: () => number = Date.now, file: string | null = null) {
     this.ttlMs = ttlMs;
     this.now = now;
+    this.file = file;
+    if (file) this.load(file);
+  }
+
+  private load(file: string): void {
+    if (!existsSync(file)) return;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(readFileSync(file, 'utf8'));
+    } catch {
+      return;
+    }
+    const result = PersistedSchema.safeParse(parsed);
+    if (!result.success) return;
+    const t = this.now();
+    for (const [sid, session] of Object.entries(result.data)) {
+      if (session.expiresAt > t) this.sessions.set(sid, session);
+    }
+  }
+
+  private persist(): void {
+    if (!this.file) return;
+    mkdirSync(path.dirname(this.file), { recursive: true });
+    const tmp = `${this.file}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(Object.fromEntries(this.sessions)), { encoding: 'utf8', mode: OWNER_ONLY });
+    chmodSync(tmp, OWNER_ONLY);
+    renameSync(tmp, this.file);
   }
 
   create(identity: Identity, cluster: ClusterSession | null = null): string {
     const sid = randomBytes(SESSION_ID_BYTES).toString('base64url');
     this.sessions.set(sid, { identity, cluster, expiresAt: this.now() + this.ttlMs });
+    this.persist();
     return sid;
   }
 
@@ -33,6 +81,7 @@ export class SessionStore {
     if (!session) return null;
     if (session.expiresAt <= this.now()) {
       this.sessions.delete(sid);
+      this.persist();
       return null;
     }
     return session;
@@ -46,15 +95,31 @@ export class SessionStore {
     return this.live(sid)?.cluster ?? null;
   }
 
+  /** Slide the expiry forward once the session is past half its life. Returns true when it did. */
+  touch(sid: string): boolean {
+    const session = this.live(sid);
+    if (!session) return false;
+    const remaining = session.expiresAt - this.now();
+    if (remaining > this.ttlMs / 2) return false;
+    session.expiresAt = this.now() + this.ttlMs;
+    this.persist();
+    return true;
+  }
+
   delete(sid: string): void {
-    this.sessions.delete(sid);
+    if (this.sessions.delete(sid)) this.persist();
   }
 
   sweep(): void {
     const t = this.now();
+    let removed = false;
     for (const [sid, session] of this.sessions) {
-      if (session.expiresAt <= t) this.sessions.delete(sid);
+      if (session.expiresAt <= t) {
+        this.sessions.delete(sid);
+        removed = true;
+      }
     }
+    if (removed) this.persist();
   }
 
   get size(): number {

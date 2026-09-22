@@ -13,6 +13,7 @@ describe('loadConfig', () => {
     expect(config).toMatchObject({
       host: '127.0.0.1',
       port: 8787,
+      sessionTtlMs: 30 * 24 * 60 * 60 * 1000,
       frontendOrigin: 'http://localhost:5173',
       thoughtSpotHost: null,
       dataDir: 'data',

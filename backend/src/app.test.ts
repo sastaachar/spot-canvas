@@ -240,6 +240,42 @@ describe('sign in', () => {
     expect(await local.json()).toMatchObject({ error: 'invalid_cluster_url' });
   });
 
+  it('refreshes the session cookie once the session is past half its life', async () => {
+    let now = Date.now();
+    const sliding = await start(dir, 1000, {});
+    await stop(sliding);
+    const layouts = new LayoutStore(dir);
+    const sessions = new SessionStore(1000, () => now);
+    const app = createApp({
+      config: { ...config, dataDir: dir, sessionTtlMs: 1000 },
+      auth: flakyAuth,
+      sessions,
+      layouts,
+      limiter: new RateLimiter(1000, 60_000),
+      loginLimiter: new RateLimiter(1000, 60_000),
+      chatLimiter: new RateLimiter(1000, 60_000),
+      log: () => {}
+    });
+    const server = createServer((req, res) => void app(req, res));
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const addr = server.address();
+    const localBase = `http://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}`;
+    try {
+      const res = await fetch(`${localBase}/api/login`, { method: 'POST', headers: { ...json, ...csrf }, body: JSON.stringify({ token: ALICE }) });
+      const cookie = (res.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+      const early = await fetch(`${localBase}/api/me`, { headers: { Cookie: cookie } });
+      expect(early.headers.get('set-cookie')).toBeNull();
+      now += 700;
+      const late = await fetch(`${localBase}/api/me`, { headers: { Cookie: cookie } });
+      expect(late.status).toBe(200);
+      expect(late.headers.get('set-cookie')).toContain(cookie);
+      now += 900;
+      expect((await fetch(`${localBase}/api/me`, { headers: { Cookie: cookie } })).status).toBe(200);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it('signs out and invalidates the cookie', async () => {
     const { cookie } = await login(ALICE);
     const out = await api('/api/logout', { method: 'POST', headers: csrf }, cookie);

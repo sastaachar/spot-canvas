@@ -106,10 +106,12 @@ describe('session', () => {
     api.fetchMe.mockResolvedValue(null);
     memory.value = serializeLayout({ [notePanel.iid]: notePanel });
     localStorage.setItem('spot-canvas.last-cluster', 'remembered.thoughtspot.cloud');
+    localStorage.setItem('spot-canvas.last-username', 'remembered.user');
     render(<App />);
 
     const cluster = (await screen.findByLabelText('Cluster URL')) as HTMLInputElement;
     expect(cluster.value).toBe('remembered.thoughtspot.cloud');
+    expect((screen.getByLabelText('Username') as HTMLInputElement).value).toBe('remembered.user');
     const submit = screen.getByRole('button', { name: 'Sign in' }) as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
     fireEvent.change(cluster, { target: { value: ' my.thoughtspot.cloud ' } });
@@ -121,6 +123,7 @@ describe('session', () => {
     const panel = await screen.findByRole('region', { name: 'Sticky note' });
     expect(api.signIn).toHaveBeenCalledWith({ clusterUrl: 'my.thoughtspot.cloud', username: 'jdoe', password: 'pw' });
     expect(localStorage.getItem('spot-canvas.last-cluster')).toBe('my.thoughtspot.cloud');
+    expect(localStorage.getItem('spot-canvas.last-username')).toBe('jdoe');
     expect(shadowOf(panel).querySelector('textarea')!.value).toBe('saved earlier');
   });
 

@@ -2,28 +2,30 @@ import { useState, type FormEvent } from 'react';
 import { useSession } from '../core/session';
 
 const LAST_CLUSTER_KEY = 'spot-canvas.last-cluster';
+const LAST_USERNAME_KEY = 'spot-canvas.last-username';
 
-function rememberedCluster(): string {
+// Cluster URL and username are remembered to save typing; the password never is.
+function remembered(key: string): string {
   try {
-    return localStorage.getItem(LAST_CLUSTER_KEY) ?? '';
+    return localStorage.getItem(key) ?? '';
   } catch {
     return '';
   }
 }
 
-function rememberCluster(url: string): void {
+function remember(key: string, value: string): void {
   try {
-    localStorage.setItem(LAST_CLUSTER_KEY, url);
+    localStorage.setItem(key, value);
   } catch {
-    // remembering the cluster is a convenience only
+    // remembering is a convenience only
   }
 }
 
 export function SignIn() {
   const signIn = useSession((s) => s.signIn);
   const error = useSession((s) => s.error);
-  const [clusterUrl, setClusterUrl] = useState(rememberedCluster);
-  const [username, setUsername] = useState('');
+  const [clusterUrl, setClusterUrl] = useState(() => remembered(LAST_CLUSTER_KEY));
+  const [username, setUsername] = useState(() => remembered(LAST_USERNAME_KEY));
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const ready = clusterUrl.trim() !== '' && username.trim() !== '' && password !== '';
@@ -34,7 +36,8 @@ export function SignIn() {
     setBusy(true);
     const ok = await signIn({ clusterUrl: clusterUrl.trim(), username: username.trim(), password });
     if (ok) {
-      rememberCluster(clusterUrl.trim());
+      remember(LAST_CLUSTER_KEY, clusterUrl.trim());
+      remember(LAST_USERNAME_KEY, username.trim());
       return;
     }
     setBusy(false);

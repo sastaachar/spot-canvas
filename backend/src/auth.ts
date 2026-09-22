@@ -14,7 +14,7 @@ export class UpstreamError extends Error {
 
 const SESSION_USER_PATH = '/api/rest/2.0/auth/session/user';
 const LOGIN_PATH = '/api/rest/2.0/auth/session/login';
-const CLUSTER_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+const CLUSTER_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const REQUESTED_BY_HEADER = { 'X-Requested-By': 'ThoughtSpot' };
 
 export interface ClusterCredentials {
@@ -62,9 +62,10 @@ export function normaliseClusterUrl(raw: string, allowLocal: boolean): string {
   } catch {
     throw new ClusterUrlError('That cluster URL is not valid.');
   }
-  const local = url.hostname === 'localhost' || url.hostname.endsWith('.localhost') || isIpLiteral(url.hostname);
-  if (local && !allowLocal) throw new ClusterUrlError('Use the cluster\u2019s public https address.');
-  if (url.protocol !== 'https:' && !(local && url.protocol === 'http:')) {
+  const loopback = url.hostname === 'localhost' || url.hostname.endsWith('.localhost') || url.hostname === '127.0.0.1' || url.hostname === '[::1]';
+  if (loopback && !allowLocal) throw new ClusterUrlError('A cluster on localhost needs ALLOW_LOCAL_CLUSTERS=true on the server.');
+  const plainHttpOk = allowLocal && (loopback || isIpLiteral(url.hostname));
+  if (url.protocol !== 'https:' && !plainHttpOk) {
     throw new ClusterUrlError('The cluster URL must use https.');
   }
   return url.origin;

@@ -142,6 +142,8 @@ export function createApp(deps: AppDeps): Handler {
       const identity = identityOrDevDefault(req, res);
       if (!identity) throw new HttpError(401, 'unauthenticated');
       const sid = parseCookies(req.headers.cookie).get(SESSION_COOKIE) ?? null;
+      // Keep signed-in users signed in: slide the expiry and refresh the cookie as they use the page.
+      if (sid && deps.sessions.touch(sid)) res.setHeader('Set-Cookie', sessionCookie(sid, config.sessionTtlMs, config.cookieSecure));
 
       if (pathname === '/api/me' && method === 'GET') return sendJson(res, 200, { user: userView(identity) });
 
