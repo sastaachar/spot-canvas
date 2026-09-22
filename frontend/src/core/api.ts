@@ -108,3 +108,31 @@ export async function sendChat(message: string, history: ChatTurn[], catalogue: 
   if (!res.ok) throw new ApiError(res.status, 'Spotter could not answer.');
   return (await res.json()) as ChatReply;
 }
+
+export async function publishCatalogue(catalogue: ChatCataloguePlugin[]): Promise<void> {
+  const res = await call('/catalogue', { method: 'PUT', body: JSON.stringify(catalogue) });
+  if (!res.ok) throw new ApiError(res.status, 'Could not publish the plugin list.');
+}
+
+export interface TokenInfo {
+  label: string;
+  createdAt: number;
+}
+
+export async function createToken(label: string): Promise<{ token: string; tokens: TokenInfo[] }> {
+  const res = await call('/tokens', { method: 'POST', body: JSON.stringify({ label }) });
+  if (!res.ok) throw new ApiError(res.status, 'Could not create a token.');
+  return (await res.json()) as { token: string; tokens: TokenInfo[] };
+}
+
+export async function listTokens(): Promise<TokenInfo[]> {
+  const res = await call('/tokens');
+  if (!res.ok) throw new ApiError(res.status, 'Could not list tokens.');
+  return ((await res.json()) as { tokens: TokenInfo[] }).tokens;
+}
+
+export async function revokeTokens(): Promise<number> {
+  const res = await call('/tokens', { method: 'DELETE' });
+  if (!res.ok) throw new ApiError(res.status, 'Could not revoke tokens.');
+  return ((await res.json()) as { revoked: number }).revoked;
+}

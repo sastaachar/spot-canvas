@@ -7,7 +7,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/server.ts', 'src/**/*.test.ts']
+      exclude: ['src/server.ts', 'src/mcp/server.ts', 'src/**/*.test.ts']
     }
   }
 });

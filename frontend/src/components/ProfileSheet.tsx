@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { createToken, revokeTokens, type TokenInfo } from '../core/api';
 import { useShallow } from 'zustand/react/shallow';
 import { usePluginRegistry } from '../core/registry';
 import { useSession } from '../core/session';
@@ -150,6 +151,8 @@ export function ProfileSheet() {
           </ul>
         </section>
 
+        <AgentsSection />
+
         <footer className="sheet__foot">
           <button type="button" className="tb-btn" onClick={() => void signOut()}>
             Sign out
@@ -157,5 +160,87 @@ export function ProfileSheet() {
         </footer>
       </aside>
     </div>
+  );
+}
+
+const MCP_SERVER_NAME = 'spot-canvas';
+
+function mcpConfig(token: string): string {
+  const url = typeof location !== 'undefined' ? `${location.protocol}//${location.host}` : 'http://localhost:5173';
+  return JSON.stringify(
+    {
+      mcpServers: {
+        [MCP_SERVER_NAME]: {
+          command: 'pnpm',
+          args: ['--filter', '@spot-canvas/backend', 'mcp'],
+          env: { SPOT_CANVAS_URL: url, SPOT_CANVAS_TOKEN: token }
+        }
+      }
+    },
+    null,
+    2
+  );
+}
+
+function AgentsSection() {
+  const [token, setToken] = useState<string | null>(null);
+  const [tokens, setTokens] = useState<TokenInfo[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const create = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const created = await createToken('MCP');
+      setToken(created.token);
+      setTokens(created.tokens);
+    } catch {
+      setError('Could not create a token.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const revoke = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await revokeTokens();
+      setToken(null);
+      setTokens([]);
+    } catch {
+      setError('Could not revoke tokens.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="sheet__section">
+      <h2>Agents</h2>
+      <p className="sheet__empty">Let Claude Desktop, Claude Code or any MCP client edit this homepage with the same tools Spotter uses.</p>
+      <div className="sheet__actions">
+        <button type="button" className="tb-btn tb-btn--primary" disabled={busy} onClick={() => void create()}>
+          Create MCP token
+        </button>
+        {(tokens?.length ?? 0) > 0 && (
+          <button type="button" className="tb-btn" disabled={busy} onClick={() => void revoke()}>
+            Revoke all
+          </button>
+        )}
+      </div>
+      {error && (
+        <p className="sheet__error" role="alert">
+          {error}
+        </p>
+      )}
+      {token && (
+        <div className="sheet__token">
+          <p className="sheet__empty">Shown once. Paste this into your MCP client configuration:</p>
+          <pre className="code" aria-label="MCP configuration">{mcpConfig(token)}</pre>
+        </div>
+      )}
+    </section>
   );
 }

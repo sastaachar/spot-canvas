@@ -7,6 +7,8 @@ import { loadConfig } from './config.ts';
 import { LayoutStore } from './layouts.ts';
 import { RateLimiter } from './rateLimit.ts';
 import { SessionStore } from './sessions.ts';
+import { TokenStore } from './tokens.ts';
+import { CatalogueStore } from './catalogue.ts';
 
 const MINUTE_MS = 60_000;
 const REQUESTS_PER_MINUTE = 300;
@@ -29,11 +31,14 @@ const layouts = new LayoutStore(config.dataDir);
 await layouts.init();
 
 const sessions = new SessionStore(config.sessionTtlMs, Date.now, path.join(config.dataDir, 'sessions.json'));
+const tokens = new TokenStore(path.join(config.dataDir, 'tokens.json'));
+const catalogues = new CatalogueStore(path.join(config.dataDir, 'catalogues'));
+await catalogues.init();
 const limiter = new RateLimiter(REQUESTS_PER_MINUTE, MINUTE_MS);
 const loginLimiter = new RateLimiter(LOGINS_PER_MINUTE, MINUTE_MS);
 const chatLimiter = new RateLimiter(CHATS_PER_MINUTE, MINUTE_MS);
 
-const app = createApp({ config, auth: authenticatorFor(config), sessions, layouts, limiter, loginLimiter, chatLimiter });
+const app = createApp({ config, auth: authenticatorFor(config), sessions, layouts, limiter, loginLimiter, chatLimiter, tokens, catalogues });
 
 setInterval(() => {
   sessions.sweep();

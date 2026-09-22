@@ -1,7 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
 import { AgentError, runChat, type ChatMessage } from './agent/chat.ts';
-import { CataloguePluginSchema } from './agent/tools.ts';
+import { applyTool, CataloguePluginSchema, TOOLS, type ToolContext } from './agent/tools.ts';
+import { CatalogueSchema, type CatalogueStore } from './catalogue.ts';
+import type { TokenStore } from './tokens.ts';
 import { ClusterUrlError, loginToCluster, UpstreamError, type Authenticator, type ClusterSession, type FetchLike } from './auth.ts';
 import type { Config, Identity } from './config.ts';
 import { applyBaseHeaders, clientIp, HttpError, readJson, sendEmpty, sendJson } from './http.ts';
@@ -51,10 +53,16 @@ export interface AppDeps {
   limiter: RateLimiter;
   loginLimiter: RateLimiter;
   chatLimiter: RateLimiter;
+  tokens: TokenStore;
+  catalogues: CatalogueStore;
   gatewayFetch?: FetchLike;
   clusterFetch?: FetchLike;
   log?: Logger;
 }
+
+const TokenRequestSchema = z.object({ label: z.string().min(1).max(60).default('MCP') });
+const TOOL_NAMES = new Set(TOOLS.map((t) => t.function.name));
+const BEARER = /^Bearer\s+(\S+)$/i;
 
 export type Handler = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
 
@@ -93,7 +101,14 @@ export function createApp(deps: AppDeps): Handler {
 
   // Local development only: with DEV_DEFAULT_USER set, a request without a session is
   // treated as that dev user so the homepage opens without a sign-in step.
+  const bearerIdentity = (req: IncomingMessage): Identity | null => {
+    const match = BEARER.exec(req.headers.authorization ?? '');
+    return match?.[1] ? deps.tokens.resolve(match[1]) : null;
+  };
+
   const identityOrDevDefault = (req: IncomingMessage, res: ServerResponse): Identity | null => {
+    const bearer = bearerIdentity(req);
+    if (bearer) return bearer;
     const { identity } = currentSession(req);
     if (identity || !config.devDefaultUserId) return identity;
     const fallback = [...config.devUsers.values()].find((u) => u.id === config.devDefaultUserId) ?? null;
@@ -110,7 +125,7 @@ export function createApp(deps: AppDeps): Handler {
       if (!applyCors(req, res)) throw new HttpError(403, 'origin_not_allowed');
       if (method === 'OPTIONS') return sendEmpty(res, 204);
       if (!deps.limiter.allow(clientIp(req))) throw new HttpError(429, 'rate_limited');
-      if (MUTATING_METHODS.has(method) && req.headers[CSRF_HEADER] !== CSRF_VALUE) {
+      if (MUTATING_METHODS.has(method) && req.headers[CSRF_HEADER] !== CSRF_VALUE && !BEARER.test(req.headers.authorization ?? '')) {
         throw new HttpError(403, 'missing_csrf_header');
       }
 
@@ -159,17 +174,53 @@ export function createApp(deps: AppDeps): Handler {
         return sendEmpty(res, 204);
       }
 
+      if (pathname === '/api/tokens' && method === 'POST') {
+        const parsed = TokenRequestSchema.safeParse((await readJson(req).catch(() => ({}))) ?? {});
+        if (!parsed.success) throw new HttpError(400, 'invalid_body');
+        const token = deps.tokens.create(identity, parsed.data.label);
+        return sendJson(res, 201, { token, label: parsed.data.label, tokens: deps.tokens.list(identity.id) });
+      }
+
+      if (pathname === '/api/tokens' && method === 'GET') return sendJson(res, 200, { tokens: deps.tokens.list(identity.id) });
+
+      if (pathname === '/api/tokens' && method === 'DELETE') {
+        return sendJson(res, 200, { revoked: deps.tokens.revokeAll(identity.id) });
+      }
+
+      if (pathname === '/api/catalogue' && method === 'PUT') {
+        const parsed = CatalogueSchema.safeParse(await readJson(req));
+        if (!parsed.success) throw new HttpError(400, 'invalid_catalogue');
+        await deps.catalogues.write(identity.id, parsed.data);
+        return sendEmpty(res, 204);
+      }
+
+      if (pathname === '/api/tools' && method === 'GET') {
+        return sendJson(res, 200, { tools: TOOLS.map((t) => t.function) });
+      }
+
+      if (pathname.startsWith('/api/tools/') && method === 'POST') {
+        const name = pathname.slice('/api/tools/'.length);
+        if (!TOOL_NAMES.has(name)) throw new HttpError(404, 'unknown_tool');
+        const args = (await readJson(req).catch(() => ({}))) ?? {};
+        const layout = structuredClone((await deps.layouts.read(identity.id)) ?? EMPTY_LAYOUT);
+        const ctx: ToolContext = { layout, catalogue: await deps.catalogues.read(identity.id) };
+        const outcome = await applyTool(name, args, ctx);
+        if (outcome.changed) await deps.layouts.write(identity.id, layout);
+        return sendJson(res, 200, { result: outcome.result, changed: outcome.changed, summary: outcome.summary ?? null });
+      }
+
       if (pathname === '/api/chat' && method === 'POST') {
         if (!config.gateway) throw new HttpError(503, 'chat_disabled');
         if (!deps.chatLimiter.allow(clientIp(req))) throw new HttpError(429, 'rate_limited');
         const parsed = ChatSchema.safeParse(await readJson(req));
         if (!parsed.success) throw new HttpError(400, 'invalid_body');
         const layout = (await deps.layouts.read(identity.id)) ?? EMPTY_LAYOUT;
+        const catalogue = parsed.data.catalogue.length > 0 ? parsed.data.catalogue : await deps.catalogues.read(identity.id);
         const result = await runChat(
           {
             message: parsed.data.message,
             history: parsed.data.history as ChatMessage[],
-            catalogue: parsed.data.catalogue,
+            catalogue,
             layout,
             user: identity,
             cluster: sid ? deps.sessions.cluster(sid) : null

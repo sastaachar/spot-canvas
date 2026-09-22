@@ -5,7 +5,7 @@ A personal ThoughtSpot homepage. Every user gets a blank canvas and arranges plu
 ```
 frontend/           the homepage: Vite + React + Zustand, one canvas, right-click to add or remove plugins
 frontend/sdk        plugin contract: manifest schema, PluginApi types, definePlugin()
-frontend/plugins/*  first-party plugins (thoughtspot-chart, embed, note, workflow, links, timer), vanilla TS against the SDK
+frontend/plugins/*  first-party plugins (thoughtspot-chart, embed, note, workflow, link, timer), vanilla TS against the SDK
 backend/            Node API: signs a user in, stores that user's layout (one JSON document per user)
 ```
 
@@ -99,17 +99,28 @@ Load a plugin you are developing from the canvas menu: right-click, "Load plugin
 
 ## The page
 
-- **Canvas.** Flat ThoughtSpot-blue surface. Panels are plugins; drag by the header, resize from the corner.
+- **Canvas.** A 24×16 grid of sectors on the Radiant dot grid. Every component on the page is a widget; widgets store sector positions and render as percentages, so a homepage keeps its shape on any screen.
+- **Widgets are locked.** Click one to select it (accent border). Right-click for *Edit* (give it a name, shown as its only header text), *Move* (one drag or corner resize, then it locks again), the widget's own actions, *Bring to front*, *Group*, and *Remove*. There is no close button.
 - **Groups.** Right-click → *New group here* draws a tinted rectangle with a title. Drop a panel inside and it joins the group; drag the group and its panels move with it. Rename by double-clicking the title; colour, ungroup or remove from the group's menu.
 - **Profile** (avatar, top right). Who you are, light / dark / system theme (saved with your layout), every suite with its setup state, every plugin and how many are on the page, sign out.
 - **Chat bar** (bottom). Talks to Spotter, an agent that edits the page for you through tools: "add a note for standup in a Today group", "put my links next to the workflow", "switch to dark". Replies appear in a bubble above the bar; the page updates in place.
+
+### Agents over MCP
+
+The same tools Spotter uses are exposed over HTTP, and a tiny MCP server proxies to them, so Claude Desktop, Claude Code or any MCP client can edit a homepage.
+
+1. Open the profile sheet → **Agents → Create MCP token**. The token is shown once, inside a ready-to-paste MCP client configuration.
+2. Paste that configuration into your client (for Claude Desktop, `claude_desktop_config.json`). It runs `pnpm --filter @spot-canvas/backend mcp` with `SPOT_CANVAS_URL` and `SPOT_CANVAS_TOKEN` set.
+3. Ask the client to change your homepage. The page polls every few seconds and reveals new widgets with the same drawn outlines Spotter gets.
+
+Under the hood: `GET /api/tools` lists the tools, `POST /api/tools/<name>` applies one to the caller's saved layout, and `PUT /api/catalogue` is how the browser tells the server which plugins it can add. Tokens are accepted as `Authorization: Bearer sc_…`, stored hashed, and revocable from the same sheet. The MCP server itself is `backend/src/mcp/server.ts`: newline-delimited JSON-RPC over stdio (`initialize`, `tools/list`, `tools/call`), no extra dependencies.
 
 ### Right-click menu
 
 Everything on the homepage is driven from the context menu; there is no toolbar.
 
-- **Canvas:** *Add plugin ▸* (standalone plugins first, then one group per suite; the panel lands where you clicked), *New group here*, *Suites ▸* (each suite's settings, marked `configured` or `needs setup`), *Load plugin from URL…*, *Clear homepage*, *Profile & appearance…*.
-- **Panel header:** *Bring to front*, *Group ▸* (when groups exist), the owning suite's *settings…*, *Remove*.
+- **Canvas:** *Add plugin ▸* (standalone plugins first, then one group per suite; the widget lands in the sector you clicked), *New group here*, *Suites ▸*, *Load plugin from URL…*, *Clear homepage*, *Profile & appearance…*.
+- **Widget:** *Edit*, *Move*, the widget's own actions, *Bring to front*, *Group ▸* (when groups exist), the owning suite's *settings…*, *Remove*.
 - **Group title:** *Rename*, *Colour ▸*, *Ungroup* (keeps panels), *Remove group and its panels*.
 - Right-clicking inside a plugin's body keeps the browser's own menu, so copy and paste still work.
 

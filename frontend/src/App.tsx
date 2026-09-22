@@ -10,6 +10,7 @@ import { Toasts } from './components/Toasts';
 import { remoteLayoutBackend } from './core/api';
 import { attachPersistence, restoreLayout } from './core/persistence';
 import { useSession } from './core/session';
+import { startLayoutSync } from './core/sync';
 import { useCanvasStore } from './core/store';
 import { applyThemePreference } from './core/theme';
 
@@ -28,13 +29,16 @@ export function App() {
     if (status !== 'signed-in') return;
     let cancelled = false;
     let detach: (() => void) | null = null;
+    let stopSync: (() => void) | null = null;
     void restoreLayout(remoteLayoutBackend).then(() => {
       if (cancelled) return;
       detach = attachPersistence(remoteLayoutBackend);
+      stopSync = startLayoutSync();
       setReady(true);
     });
     return () => {
       cancelled = true;
+      stopSync?.();
       detach?.();
       useCanvasStore.getState().hydrate([]);
       useCanvasStore.getState().setDrawer(false);

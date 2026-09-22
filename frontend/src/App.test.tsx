@@ -11,7 +11,7 @@ const { api, memory } = vi.hoisted(() => {
       memory.value = json;
     }
   };
-  const api = { fetchMe: vi.fn(), signIn: vi.fn(), signOut: vi.fn(), sendChat: vi.fn() };
+  const api = { fetchMe: vi.fn(), signIn: vi.fn(), signOut: vi.fn(), sendChat: vi.fn(), publishCatalogue: vi.fn(), createToken: vi.fn(), revokeTokens: vi.fn(), listTokens: vi.fn() };
   return { api, memory };
 });
 
@@ -79,6 +79,9 @@ beforeEach(() => {
   api.signIn.mockReset().mockResolvedValue(user);
   api.signOut.mockReset().mockResolvedValue(undefined);
   api.sendChat.mockReset();
+  api.publishCatalogue.mockReset().mockResolvedValue(undefined);
+  api.createToken.mockReset();
+  api.revokeTokens.mockReset().mockResolvedValue(1);
   useChatStore.setState({ turns: [], pending: false, lastReply: null, error: null });
   useGhostStore.setState({ ghosts: [] });
 });
@@ -563,6 +566,46 @@ describe('selection and edit', () => {
     fireEvent.change(again, { target: { value: '   ' } });
     fireEvent.keyDown(again, { key: 'Escape' });
     expect(screen.getByRole('region', { name: 'Groceries' })).toBeTruthy();
+  });
+});
+
+describe('agents over MCP', () => {
+  it('publishes the plugin catalogue after sign-in', async () => {
+    await renderSignedIn();
+    await vi.waitFor(() => expect(api.publishCatalogue).toHaveBeenCalled());
+    const [catalogue] = api.publishCatalogue.mock.calls[0] as [Array<{ id: string; size: [number, number] }>];
+    expect(catalogue.map((c) => c.id)).toContain('spotcanvas.link');
+    expect(catalogue.find((c) => c.id === 'spotcanvas.note')?.size).toEqual([4, 3]);
+  });
+
+  it('creates an MCP token from the profile sheet and shows the client config once', async () => {
+    await renderSignedIn();
+    api.createToken.mockResolvedValue({ token: 'sc_secret123', tokens: [{ label: 'MCP', createdAt: 1 }] });
+    fireEvent.click(screen.getByRole('button', { name: 'Profile' }));
+    const sheet = screen.getByRole('dialog', { name: 'Profile' });
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Create MCP token' }));
+    const config = await within(sheet).findByLabelText('MCP configuration');
+    expect(config.textContent).toContain('sc_secret123');
+    expect(config.textContent).toContain('SPOT_CANVAS_URL');
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Revoke all' }));
+    await vi.waitFor(() => expect(within(sheet).queryByLabelText('MCP configuration')).toBeNull());
+    expect(api.revokeTokens).toHaveBeenCalled();
+  });
+
+  it('picks up a layout changed elsewhere and reveals the new widgets', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await renderSignedIn();
+    expect(screen.queryByRole('region', { name: 'Sticky note' })).toBeNull();
+    memory.value = serializeLayout({ [notePanel.iid]: notePanel });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5100);
+    });
+    expect(await screen.findAllByTestId('ghost')).toHaveLength(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    expect(screen.getByRole('region', { name: 'Sticky note' })).toBeTruthy();
+    vi.useRealTimers();
   });
 });
 

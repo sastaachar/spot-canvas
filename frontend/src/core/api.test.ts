@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, fetchMe, remoteLayoutBackend, sendChat, signIn, signOut } from './api';
+import { ApiError, createToken, fetchMe, listTokens, publishCatalogue, remoteLayoutBackend, revokeTokens, sendChat, signIn, signOut } from './api';
 
 const user = { id: 'u1', name: 'alice', displayName: 'Alice' };
 const fetchMock = vi.fn();
@@ -101,5 +101,32 @@ describe('sendChat', () => {
       fetchMock.mockResolvedValueOnce(reply(status));
       await expect(sendChat('x', [], [])).rejects.toThrow(pattern);
     }
+  });
+});
+
+describe('catalogue and tokens', () => {
+  it('publishes the catalogue and manages tokens', async () => {
+    fetchMock.mockResolvedValueOnce(reply(204));
+    await publishCatalogue([{ id: 'a.b', name: 'A', kind: 'widget', size: [4, 3] }]);
+    expect(lastCall()).toMatchObject({ url: '/api/catalogue', init: { method: 'PUT' } });
+    fetchMock.mockResolvedValueOnce(reply(500));
+    await expect(publishCatalogue([])).rejects.toBeInstanceOf(ApiError);
+
+    fetchMock.mockResolvedValueOnce(reply(201, { token: 'sc_x', tokens: [{ label: 'MCP', createdAt: 1 }] }));
+    expect(await createToken('MCP')).toEqual({ token: 'sc_x', tokens: [{ label: 'MCP', createdAt: 1 }] });
+    expect(JSON.parse(String(lastCall().init.body))).toEqual({ label: 'MCP' });
+    fetchMock.mockResolvedValueOnce(reply(500));
+    await expect(createToken('MCP')).rejects.toBeInstanceOf(ApiError);
+
+    fetchMock.mockResolvedValueOnce(reply(200, { tokens: [] }));
+    expect(await listTokens()).toEqual([]);
+    fetchMock.mockResolvedValueOnce(reply(500));
+    await expect(listTokens()).rejects.toBeInstanceOf(ApiError);
+
+    fetchMock.mockResolvedValueOnce(reply(200, { revoked: 2 }));
+    expect(await revokeTokens()).toBe(2);
+    expect(lastCall().init.method).toBe('DELETE');
+    fetchMock.mockResolvedValueOnce(reply(500));
+    await expect(revokeTokens()).rejects.toBeInstanceOf(ApiError);
   });
 });

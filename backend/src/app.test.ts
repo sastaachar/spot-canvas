@@ -9,6 +9,8 @@ import type { Config, Identity } from './config.ts';
 import { LayoutStore } from './layouts.ts';
 import { RateLimiter } from './rateLimit.ts';
 import { SessionStore } from './sessions.ts';
+import { TokenStore } from './tokens.ts';
+import { CatalogueStore } from './catalogue.ts';
 
 const ALICE = 'alice-token-12345';
 const BOB = 'bob-token-1234567';
@@ -47,6 +49,8 @@ interface Running {
 async function start(dir: string, loginLimit: number, overrides: Partial<Config> = {}): Promise<Running> {
   const layouts = new LayoutStore(dir);
   await layouts.init();
+  const catalogues = new CatalogueStore(path.join(dir, 'catalogues'));
+  await catalogues.init();
   const app = createApp({
     config: { ...config, dataDir: dir, ...overrides },
     auth: flakyAuth,
@@ -55,6 +59,8 @@ async function start(dir: string, loginLimit: number, overrides: Partial<Config>
     limiter: new RateLimiter(1000, 60_000),
     loginLimiter: new RateLimiter(loginLimit, 60_000),
     chatLimiter: new RateLimiter(1000, 60_000),
+    tokens: new TokenStore(),
+    catalogues,
     gatewayFetch: fakeGateway,
     clusterFetch: fakeCluster,
     log: () => {}
@@ -253,6 +259,8 @@ describe('sign in', () => {
       limiter: new RateLimiter(1000, 60_000),
       loginLimiter: new RateLimiter(1000, 60_000),
       chatLimiter: new RateLimiter(1000, 60_000),
+      tokens: new TokenStore(),
+      catalogues: new CatalogueStore(path.join(dir, 'catalogues')),
       log: () => {}
     });
     const server = createServer((req, res) => void app(req, res));
@@ -484,5 +492,62 @@ describe('chat', () => {
     } finally {
       await stop(off);
     }
+  });
+});
+
+describe('personal tokens, catalogue and HTTP tools (the MCP surface)', () => {
+  it('mints a token, accepts it as bearer auth without CSRF, and revokes it', async () => {
+    const bob = (await login(BOB)).cookie;
+    const created = await api('/api/tokens', { method: 'POST', headers: { ...json, ...csrf }, body: JSON.stringify({ label: 'Desktop' }) }, bob);
+    expect(created.status).toBe(201);
+    const { token, tokens } = (await created.json()) as { token: string; tokens: Array<{ label: string }> };
+    expect(token.startsWith('sc_')).toBe(true);
+    expect(tokens).toEqual([{ label: 'Desktop', createdAt: expect.any(Number) }]);
+
+    const me = await api('/api/me', { headers: { Authorization: `Bearer ${token}` } });
+    expect(me.status).toBe(200);
+    expect(((await me.json()) as { user: { id: string } }).user.id).toBe('u-bob');
+    expect((await api('/api/me', { headers: { Authorization: 'Bearer sc_nope' } })).status).toBe(401);
+
+    const put = await api('/api/catalogue', {
+      method: 'PUT',
+      headers: { ...json, Authorization: `Bearer ${token}` },
+      body: JSON.stringify([{ id: 'spotcanvas.note', name: 'Sticky note', kind: 'widget', size: [4, 3] }])
+    });
+    expect(put.status).toBe(204);
+
+    const listed = await api('/api/tokens', {}, bob);
+    expect(((await listed.json()) as { tokens: unknown[] }).tokens).toHaveLength(1);
+    const revoked = await api('/api/tokens', { method: 'DELETE', headers: csrf }, bob);
+    expect(await revoked.json()).toEqual({ revoked: 1 });
+    expect((await api('/api/me', { headers: { Authorization: `Bearer ${token}` } })).status).toBe(401);
+  });
+
+  it('lists tools and applies a tool call to the saved layout using the stored catalogue', async () => {
+    const bob = (await login(BOB)).cookie;
+    const tools = await api('/api/tools', {}, bob);
+    expect(((await tools.json()) as { tools: Array<{ name: string }> }).tools.map((t) => t.name)).toContain('add_panel');
+
+    await api('/api/catalogue', { method: 'PUT', headers: { ...json, ...csrf }, body: JSON.stringify([{ id: 'spotcanvas.link', name: 'Link', kind: 'widget', size: [4, 2] }]) }, bob);
+    const group = await api('/api/tools/create_group', { method: 'POST', headers: { ...json, ...csrf }, body: JSON.stringify({ title: 'Quick links' }) }, bob);
+    expect(group.status).toBe(200);
+    const g = (await group.json()) as { result: { gid: string }; changed: boolean; summary: string };
+    expect(g).toMatchObject({ changed: true, summary: 'Created group Quick links' });
+
+    const panel = await api(
+      '/api/tools/add_panel',
+      { method: 'POST', headers: { ...json, ...csrf }, body: JSON.stringify({ plugin_id: 'spotcanvas.link', group_id: g.result.gid, data: { name: 'Docs', url: 'https://d' } }) },
+      bob
+    );
+    expect(await panel.json()).toMatchObject({ changed: true, summary: 'Added Link in Quick links' });
+
+    const layout = (await (await api('/api/layout', {}, bob)).json()) as { panels: Array<{ pluginId: string; groupId: string }> };
+    expect(layout.panels.some((p) => p.pluginId === 'spotcanvas.link' && p.groupId === g.result.gid)).toBe(true);
+
+    const unknownPlugin = await api('/api/tools/add_panel', { method: 'POST', headers: { ...json, ...csrf }, body: JSON.stringify({ plugin_id: 'nope' }) }, bob);
+    expect(await unknownPlugin.json()).toMatchObject({ changed: false, result: { error: expect.stringContaining('unknown plugin') } });
+    expect((await api('/api/tools/nope', { method: 'POST', headers: { ...json, ...csrf }, body: '{}' }, bob)).status).toBe(404);
+    const read = await api('/api/tools/get_homepage', { method: 'POST', headers: { ...json, ...csrf } }, bob);
+    expect(await read.json()).toMatchObject({ changed: false, summary: 'Read the homepage' });
   });
 });
