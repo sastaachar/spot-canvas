@@ -13,9 +13,9 @@ export class UpstreamError extends Error {
 }
 
 const SESSION_USER_PATH = '/api/rest/2.0/auth/session/user';
-const TOKEN_PATH = '/api/rest/2.0/auth/token/full';
-const CLUSTER_TOKEN_TTL_SECONDS = 12 * 60 * 60;
-const MS_PER_SECOND = 1000;
+const LOGIN_PATH = '/api/rest/2.0/auth/session/login';
+const CLUSTER_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+export const REQUESTED_BY_HEADER = { 'X-Requested-By': 'ThoughtSpot' };
 
 export interface ClusterCredentials {
   clusterUrl: string;
@@ -23,9 +23,10 @@ export interface ClusterCredentials {
   password: string;
 }
 
+/** The ThoughtSpot browser-style session the backend holds on the user's behalf. */
 export interface ClusterSession {
   host: string;
-  token: string;
+  cookie: string;
   expiresAt: number;
 }
 
@@ -38,7 +39,17 @@ export class ClusterUrlError extends Error {
   override name = 'ClusterUrlError';
 }
 
-const TokenSchema = z.object({ token: z.string().min(1) });
+/** Turn the Set-Cookie headers of a login response into a Cookie request header. */
+export function cookieHeaderFrom(res: Response): string {
+  const raw: string[] =
+    typeof (res.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie === 'function'
+      ? (res.headers as Headers & { getSetCookie: () => string[] }).getSetCookie()
+      : (res.headers.get('set-cookie') ?? '').split(/,(?=\s*[^;,=\s]+=)/).filter(Boolean);
+  return raw
+    .map((line) => line.split(';')[0]?.trim() ?? '')
+    .filter((pair) => pair.includes('='))
+    .join('; ');
+}
 
 const isIpLiteral = (host: string): boolean => /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.startsWith('[');
 
@@ -114,8 +125,26 @@ export function thoughtSpotAuthenticator(host: string, fetchImpl: FetchLike = fe
   };
 }
 
-async function sessionUser(host: string, token: string, fetchImpl: FetchLike): Promise<Identity | null> {
-  return thoughtSpotAuthenticator(host, fetchImpl).authenticate(token);
+async function sessionUserByCookie(host: string, cookie: string, fetchImpl: FetchLike): Promise<Identity | null> {
+  let res: Response;
+  try {
+    res = await fetchImpl(new URL(SESSION_USER_PATH, host).toString(), {
+      headers: { Cookie: cookie, Accept: 'application/json', ...REQUESTED_BY_HEADER }
+    });
+  } catch {
+    throw new UpstreamError('The cluster is unreachable');
+  }
+  if (res.status === 401 || res.status === 403) return null;
+  if (!res.ok) throw new UpstreamError(`The cluster answered ${res.status}`);
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    throw new UpstreamError('The cluster returned a non-JSON session payload');
+  }
+  const parsed = SessionUserSchema.safeParse(body);
+  if (!parsed.success) throw new UpstreamError('The cluster returned an unexpected session payload');
+  return { id: parsed.data.id, name: parsed.data.name, displayName: parsed.data.display_name ?? parsed.data.name };
 }
 
 export async function loginToCluster(
@@ -126,34 +155,24 @@ export async function loginToCluster(
   const host = normaliseClusterUrl(credentials.clusterUrl, allowLocal);
   let res: Response;
   try {
-    res = await fetchImpl(new URL(TOKEN_PATH, host).toString(), {
+    res = await fetchImpl(new URL(LOGIN_PATH, host).toString(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({
-        username: credentials.username,
-        password: credentials.password,
-        validity_time_in_sec: CLUSTER_TOKEN_TTL_SECONDS
-      })
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...REQUESTED_BY_HEADER },
+      body: JSON.stringify({ username: credentials.username, password: credentials.password, remember_me: true })
     });
   } catch {
     throw new UpstreamError('The cluster is unreachable');
   }
   if (res.status === 401 || res.status === 403 || res.status === 400) return null;
   if (!res.ok) throw new UpstreamError(`The cluster answered ${res.status}`);
-  let body: unknown;
-  try {
-    body = await res.json();
-  } catch {
-    throw new UpstreamError('The cluster returned a non-JSON token payload');
-  }
-  const parsed = TokenSchema.safeParse(body);
-  if (!parsed.success) throw new UpstreamError('The cluster returned an unexpected token payload');
-  const user = await sessionUser(host, parsed.data.token, fetchImpl);
+  const cookie = cookieHeaderFrom(res);
+  if (!cookie) throw new UpstreamError('The cluster login did not return a session cookie');
+  const user = await sessionUserByCookie(host, cookie, fetchImpl);
   if (!user) return null;
   const clusterHost = new URL(host).host;
   return {
     identity: { ...user, id: `${clusterHost}/${user.id}`, cluster: clusterHost },
-    cluster: { host, token: parsed.data.token, expiresAt: Date.now() + CLUSTER_TOKEN_TTL_SECONDS * MS_PER_SECOND }
+    cluster: { host, cookie, expiresAt: Date.now() + CLUSTER_SESSION_TTL_MS }
   };
 }
 

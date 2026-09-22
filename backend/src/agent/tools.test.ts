@@ -26,7 +26,7 @@ describe('tool definitions', () => {
 describe('toolsFor', () => {
   it('adds the ThoughtSpot tools only when a cluster client is present', async () => {
     expect(toolsFor(fresh())).toHaveLength(TOOLS.length);
-    const cluster = { host: 'https://ts.example', token: 't', expiresAt: 0 };
+    const cluster = { host: 'https://ts.example', cookie: 'JSESSIONID=t', expiresAt: 0 };
     expect(toolsFor({ ...fresh(), thoughtSpot: new ThoughtSpotClient(cluster, async () => new Response('{}')) })).toHaveLength(TOOLS.length + THOUGHTSPOT_TOOLS.length);
   });
 });

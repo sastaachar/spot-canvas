@@ -22,7 +22,7 @@ describe('SessionStore', () => {
   it('keeps a cluster token beside the identity and forgets it on expiry', () => {
     let now = 0;
     const store = new SessionStore(10, () => now);
-    const cluster = { host: 'https://ts.example', token: 't', expiresAt: 999 };
+    const cluster = { host: 'https://ts.example', cookie: 'JSESSIONID=t', expiresAt: 999 };
     const withCluster = store.create(identity, cluster);
     const without = store.create(identity);
     expect(store.cluster(withCluster)).toEqual(cluster);

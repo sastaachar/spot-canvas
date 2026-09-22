@@ -81,7 +81,7 @@ describe('runChat', () => {
 });
 
 describe('runChat with a cluster', () => {
-  const cluster = { host: 'https://ts.example.com', token: 'ct', expiresAt: Date.now() + 60_000 };
+  const cluster = { host: 'https://ts.example.com', cookie: 'JSESSIONID=ct', expiresAt: Date.now() + 60_000 };
 
   it('offers the cluster tools, describes the cluster in the prompt, and runs cluster calls through clusterFetch', async () => {
     const { fetchImpl, calls } = scripted(

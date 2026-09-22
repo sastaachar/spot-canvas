@@ -3,6 +3,7 @@ import {
   authenticatorFor,
   chain,
   ClusterUrlError,
+  cookieHeaderFrom,
   devAuthenticator,
   loginToCluster,
   normaliseClusterUrl,
@@ -125,36 +126,56 @@ describe('normaliseClusterUrl', () => {
 describe('loginToCluster', () => {
   const creds = { clusterUrl: 'ts.example.com', username: 'jdoe', password: 'pw' };
 
-  it('mints a token with the credentials, resolves the user, and scopes the id to the cluster', async () => {
+  const loginOk = () => {
+    const headers = new Headers({ 'Content-Type': 'application/json' });
+    headers.append('Set-Cookie', 'JSESSIONID=abc123; Path=/; HttpOnly; Secure');
+    headers.append('Set-Cookie', 'clientId=xyz; Path=/');
+    return new Response('{}', { status: 200, headers });
+  };
+
+  it('logs in with session/login, keeps the cluster cookies, resolves the user, and scopes the id to the cluster', async () => {
     const fetchImpl = vi.fn(async (url: string) =>
-      url.endsWith('/auth/token/full') ? response(200, { token: 'tok-123' }) : response(200, { id: 'guid-1', name: 'jdoe', display_name: 'J. Doe' })
+      url.endsWith('/auth/session/login') ? loginOk() : response(200, { id: 'guid-1', name: 'jdoe', display_name: 'J. Doe' })
     );
     const login = await loginToCluster(creds, false, fetchImpl);
     expect(login?.identity).toEqual({ id: 'ts.example.com/guid-1', name: 'jdoe', displayName: 'J. Doe', cluster: 'ts.example.com' });
-    expect(login?.cluster).toMatchObject({ host: 'https://ts.example.com', token: 'tok-123' });
-    const [tokenUrl, tokenInit] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
-    expect(tokenUrl).toBe('https://ts.example.com/api/rest/2.0/auth/token/full');
-    expect(JSON.parse(String(tokenInit.body))).toMatchObject({ username: 'jdoe', password: 'pw' });
+    expect(login?.cluster).toMatchObject({ host: 'https://ts.example.com', cookie: 'JSESSIONID=abc123; clientId=xyz' });
+    const [loginUrl, loginInit] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(loginUrl).toBe('https://ts.example.com/api/rest/2.0/auth/session/login');
+    expect(loginInit.method).toBe('POST');
+    expect(JSON.parse(String(loginInit.body))).toEqual({ username: 'jdoe', password: 'pw', remember_me: true });
+    expect((loginInit.headers as Record<string, string>)['X-Requested-By']).toBe('ThoughtSpot');
     const [userUrl, userInit] = fetchImpl.mock.calls[1] as unknown as [string, RequestInit];
     expect(userUrl).toBe('https://ts.example.com/api/rest/2.0/auth/session/user');
-    expect((userInit.headers as Record<string, string>)['Authorization']).toBe('Bearer tok-123');
+    expect((userInit.headers as Record<string, string>)['Cookie']).toBe('JSESSIONID=abc123; clientId=xyz');
+    expect((userInit.headers as Record<string, string>)['X-Requested-By']).toBe('ThoughtSpot');
   });
 
   it('returns null for rejected credentials and raises UpstreamError for cluster trouble', async () => {
     expect(await loginToCluster(creds, false, async () => response(401, {}))).toBeNull();
     expect(await loginToCluster(creds, false, async () => response(400, {}))).toBeNull();
-    const userRejected = vi.fn(async (url: string) => (url.endsWith('/auth/token/full') ? response(200, { token: 't' }) : response(401, {})));
+    const userRejected = vi.fn(async (url: string) => (url.endsWith('/auth/session/login') ? loginOk() : response(401, {})));
     expect(await loginToCluster(creds, false, userRejected)).toBeNull();
+    const noCookie = async () => response(200, {});
+    await expect(loginToCluster(creds, false, noCookie)).rejects.toThrow(/session cookie/);
     for (const bad of [
       async () => {
         throw new Error('ECONNREFUSED');
       },
       async () => response(500, {}),
-      async () => response(200, 'not json'),
-      async () => response(200, { nope: 1 })
+      vi.fn(async (url: string) => (url.endsWith('/auth/session/login') ? loginOk() : response(200, 'not json'))),
+      vi.fn(async (url: string) => (url.endsWith('/auth/session/login') ? loginOk() : response(200, { nope: 1 }))),
+      vi.fn(async (url: string) => (url.endsWith('/auth/session/login') ? loginOk() : response(503, {})))
     ]) {
       await expect(loginToCluster(creds, false, bad)).rejects.toBeInstanceOf(UpstreamError);
     }
     await expect(loginToCluster({ ...creds, clusterUrl: 'http://x' }, false)).rejects.toBeInstanceOf(ClusterUrlError);
+  });
+
+  it('parses Set-Cookie headers into a Cookie header, with a fallback for joined headers', () => {
+    expect(cookieHeaderFrom(loginOk())).toBe('JSESSIONID=abc123; clientId=xyz');
+    const joined = { headers: { get: () => 'a=1; Path=/, b=2; HttpOnly', getSetCookie: undefined } } as unknown as Response;
+    expect(cookieHeaderFrom(joined)).toBe('a=1; b=2');
+    expect(cookieHeaderFrom(response(200, {}))).toBe('');
   });
 });

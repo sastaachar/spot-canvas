@@ -116,7 +116,7 @@ export function createApp(deps: AppDeps): Handler {
 
       if (pathname === '/api/health' && method === 'GET') return sendJson(res, 200, { ok: true });
 
-      if (pathname === '/api/session' && method === 'POST') {
+      if ((pathname === '/api/login' || pathname === '/api/session') && method === 'POST') {
         if (!deps.loginLimiter.allow(clientIp(req))) throw new HttpError(429, 'rate_limited');
         const body = LoginSchema.safeParse(await readJson(req));
         if (!body.success) throw new HttpError(400, 'invalid_body');
@@ -132,7 +132,7 @@ export function createApp(deps: AppDeps): Handler {
         return sendJson(res, 200, { user: userView(login.identity) });
       }
 
-      if (pathname === '/api/session' && method === 'DELETE') {
+      if ((pathname === '/api/logout' && method === 'POST') || (pathname === '/api/session' && method === 'DELETE')) {
         const { sid } = currentSession(req);
         if (sid) deps.sessions.delete(sid);
         res.setHeader('Set-Cookie', clearSessionCookie(config.cookieSecure));

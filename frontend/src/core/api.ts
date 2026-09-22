@@ -44,7 +44,7 @@ export async function fetchMe(): Promise<User | null> {
 }
 
 export async function signIn(credentials: Credentials): Promise<User> {
-  const res = await call('/session', { method: 'POST', body: JSON.stringify(credentials) });
+  const res = await call('/login', { method: 'POST', body: JSON.stringify(credentials) });
   if (res.status === 401) throw new ApiError(res.status, 'That username or password was not accepted by the cluster.');
   if (res.status === 400) {
     const body = (await res.json().catch(() => ({}))) as { message?: string };
@@ -57,7 +57,7 @@ export async function signIn(credentials: Credentials): Promise<User> {
 }
 
 export async function signOut(): Promise<void> {
-  const res = await call('/session', { method: 'DELETE' });
+  const res = await call('/logout', { method: 'POST' });
   if (!res.ok) throw new ApiError(res.status, 'Sign-out failed.');
 }
 

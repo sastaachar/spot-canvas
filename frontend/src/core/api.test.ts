@@ -43,7 +43,8 @@ describe('api client', () => {
     const creds = { clusterUrl: 'my.thoughtspot.cloud', username: 'jdoe', password: 'pw' };
     fetchMock.mockResolvedValueOnce(reply(200, { user }));
     expect(await signIn(creds)).toEqual(user);
-    const { init, headers } = lastCall();
+    const { url, init, headers } = lastCall();
+    expect(url).toBe('/api/login');
     expect(init.method).toBe('POST');
     expect(init.body).toBe(JSON.stringify(creds));
     expect(headers.get('Content-Type')).toBe('application/json');
@@ -65,7 +66,8 @@ describe('api client', () => {
   it('signOut deletes the session', async () => {
     fetchMock.mockResolvedValueOnce(reply(204));
     await signOut();
-    expect(lastCall().init.method).toBe('DELETE');
+    expect(lastCall().url).toBe('/api/logout');
+    expect(lastCall().init.method).toBe('POST');
     fetchMock.mockResolvedValueOnce(reply(500));
     await expect(signOut()).rejects.toBeInstanceOf(ApiError);
   });

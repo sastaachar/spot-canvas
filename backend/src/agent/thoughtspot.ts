@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ClusterSession, FetchLike } from '../auth.ts';
+import { REQUESTED_BY_HEADER, type ClusterSession, type FetchLike } from '../auth.ts';
 
 export type ObjectType = 'liveboard' | 'answer';
 
@@ -85,7 +85,12 @@ export class ThoughtSpotClient {
     try {
       res = await this.fetchImpl(`${this.cluster.host}${path}`, {
         ...init,
-        headers: { Authorization: `Bearer ${this.cluster.token}`, Accept: 'application/json', ...(init.headers as Record<string, string> | undefined) },
+        headers: {
+          Cookie: this.cluster.cookie,
+          Accept: 'application/json',
+          ...REQUESTED_BY_HEADER,
+          ...(init.headers as Record<string, string> | undefined)
+        },
         signal: controller.signal
       });
     } catch {

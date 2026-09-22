@@ -84,9 +84,12 @@ const fakeCluster = async (url: string, init?: RequestInit): Promise<Response> =
       { status: 200 }
     );
   }
-  if (url.endsWith('/auth/token/full')) {
+  if (url.endsWith('/auth/session/login')) {
     const body = JSON.parse(String(init?.body)) as { username: string; password: string };
-    return body.password === 'right' ? new Response(JSON.stringify({ token: 'cluster-token' }), { status: 200 }) : new Response('{}', { status: 401 });
+    if (body.password !== 'right') return new Response('{}', { status: 401 });
+    const headers = new Headers();
+    headers.append('Set-Cookie', 'JSESSIONID=cluster-session; Path=/; HttpOnly');
+    return new Response('{}', { status: 200, headers });
   }
   return new Response(JSON.stringify({ id: 'guid-42', name: 'jdoe', display_name: 'Jane Doe' }), { status: 200 });
 };
@@ -208,8 +211,8 @@ describe('sign in', () => {
     expect(await me.json()).toEqual({ user: { id: 'u-alice', name: 'alice', displayName: 'Alice', cluster: null } });
   });
 
-  it('signs in with cluster url, username and password', async () => {
-    const res = await api('/api/session', {
+  it('signs in at /api/login with cluster url, username and password', async () => {
+    const res = await api('/api/login', {
       method: 'POST',
       headers: { ...json, ...csrf },
       body: JSON.stringify({ clusterUrl: 'my.thoughtspot.cloud', username: 'jdoe', password: 'right' })
@@ -239,7 +242,7 @@ describe('sign in', () => {
 
   it('signs out and invalidates the cookie', async () => {
     const { cookie } = await login(ALICE);
-    const out = await api('/api/session', { method: 'DELETE', headers: csrf }, cookie);
+    const out = await api('/api/logout', { method: 'POST', headers: csrf }, cookie);
     expect(out.status).toBe(204);
     expect(out.headers.get('set-cookie')).toContain('Max-Age=0');
     expect((await api('/api/me', {}, cookie)).status).toBe(401);

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ThoughtSpotClient, ThoughtSpotError } from './thoughtspot.ts';
 
-const cluster = { host: 'https://ts.example.com', token: 'tok', expiresAt: 0 };
+const cluster = { host: 'https://ts.example.com', cookie: 'JSESSIONID=tok', expiresAt: 0 };
 const NOW = 1_700_000_000_000;
 const DAY = 86_400_000;
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -17,7 +17,8 @@ const v1 = (id: string, name: string, type: string, lastAccessed: number, extra:
 describe('ThoughtSpotClient', () => {
   it('pages recent activity with the bearer token and stops at the day window', async () => {
     const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
-      expect((init?.headers as Record<string, string>)['Authorization']).toBe('Bearer tok');
+      expect((init?.headers as Record<string, string>)['Cookie']).toBe('JSESSIONID=tok');
+      expect((init?.headers as Record<string, string>)['X-Requested-By']).toBe('ThoughtSpot');
       const offset = Number(new URL(url).searchParams.get('offset'));
       expect(new URL(url).searchParams.get('sort')).toBe('LAST_ACCESSED');
       if (offset === 0) {
