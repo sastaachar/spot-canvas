@@ -89,7 +89,8 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const shadowOf = (panel: HTMLElement) => panel.querySelector('.panel__body')!.shadowRoot!;
-const headerOf = (panel: HTMLElement) => panel.querySelector('header')!;
+const headerOf = (panel: HTMLElement) => panel.querySelector('header') ?? panel;
+const moverOf = (panel: HTMLElement) => panel.querySelector<HTMLElement>('.panel__mover') ?? headerOf(panel);
 const unlockMove = (panel: HTMLElement) => {
   fireEvent.contextMenu(headerOf(panel));
   fireEvent.click(screen.getByRole('menuitem', { name: /^Move/ }));
@@ -178,8 +179,7 @@ describe('canvas', () => {
     expect(screen.queryByRole('menu')).toBeNull();
 
     const panel = screen.getByRole('region', { name: 'Sticky note' });
-    expect(headerOf(panel).textContent).toBe('');
-    expect(headerOf(panel).className).toContain('is-blank');
+    expect(panel.querySelector('header')).toBeNull();
     const [state] = Object.values(useCanvasStore.getState().panels);
     expect(state).toMatchObject({ x: 5, y: 4 });
     expect(panel.style.left).toBe(`${(5 / 24) * 100}%`);
@@ -195,7 +195,7 @@ describe('canvas', () => {
     await vi.waitFor(() => expect(parseLayout(memory.value)).toEqual([]));
   });
 
-  it('leaves the native menu alone inside a plugin body and closes on Escape', async () => {
+  it('opens the widget menu from anywhere on the widget and closes on Escape', async () => {
     await renderSignedIn();
     act(() => {
       useCanvasStore.getState().addPanel(getPlugin('spotcanvas.note')!.manifest);
@@ -203,7 +203,9 @@ describe('canvas', () => {
     const panel = screen.getByRole('region', { name: 'Sticky note' });
     const body = panel.querySelector('.panel__body')!;
     const ev = fireEvent.contextMenu(body, { clientX: 5, clientY: 5 });
-    expect(ev).toBe(true);
+    expect(ev).toBe(false);
+    expect(useMenuStore.getState()).toMatchObject({ open: true, target: { kind: 'panel' } });
+    fireEvent.keyDown(document, { key: 'Escape' });
     expect(useMenuStore.getState().open).toBe(false);
 
     fireEvent.contextMenu(canvas(), { clientX: 5, clientY: 5 });
@@ -268,9 +270,11 @@ describe('canvas', () => {
     unlockMove(panel);
     expect(panel.className).toContain('is-moving');
     expect(panel.querySelector('.panel__grip')).toBeTruthy();
-    fireEvent.pointerDown(head, { button: 0, clientX: 100, clientY: 100, pointerId: 1 });
-    fireEvent.pointerMove(head, { clientX: 130, clientY: 150, pointerId: 1 });
-    fireEvent.pointerUp(head, { pointerId: 1 });
+    const mover = moverOf(panel);
+    mover.setPointerCapture = () => {};
+    fireEvent.pointerDown(mover, { button: 0, clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(mover, { clientX: 130, clientY: 150, pointerId: 1 });
+    fireEvent.pointerUp(mover, { pointerId: 1 });
 
     const moved = useCanvasStore.getState().panels[iid]!;
     expect(moved.x).toBe(2);
@@ -297,8 +301,7 @@ describe('canvas', () => {
       useToastStore.getState().push('Saved', 'success', iid);
     });
     const titled = screen.getByRole('region', { name: 'Groceries' });
-    expect(headerOf(titled).textContent).toBe('Groceries');
-    expect(headerOf(titled).className).not.toContain('is-blank');
+    expect(titled.querySelector('header')!.textContent).toBe('Groceries');
     const toast = screen.getByText('Saved').closest('.toast') as HTMLElement;
     expect(toast.className).toContain('toast--success');
     expect(within(toast).getByText('spotcanvas.note')).toBeTruthy();
@@ -469,15 +472,16 @@ describe('groups', () => {
       useCanvasStore.getState().addPanel(getPlugin('spotcanvas.note')!.manifest, { x: 20, y: 13 });
     });
     const panel = screen.getByRole('region', { name: 'Sticky note' });
-    const head = headerOf(panel);
+    expect(panel.querySelector('header')).toBeNull();
     unlockMove(panel);
-    dragHeader(head, [700, 700], [40, 60]);
+    dragHeader(moverOf(panel), [700, 700], [40, 60]);
+    // dropped inside: the group lays it out in its flow, first slot under the title row
     const [state] = Object.values(useCanvasStore.getState().panels);
-    expect(state).toMatchObject({ x: 9, y: 2, groupId: 'group#1' });
+    expect(state).toMatchObject({ x: 2, y: 3, groupId: 'group#1' });
     expect(within(group).getByText('1 panel')).toBeTruthy();
 
     unlockMove(panel);
-    dragHeader(head, [40, 60], [900, 900]);
+    dragHeader(moverOf(panel), [40, 60], [900, 900]);
     expect(Object.values(useCanvasStore.getState().panels)[0]!.groupId).toBeNull();
     await vi.waitFor(() => expect(parseLayoutDocument(memory.value)?.groups).toHaveLength(1));
   });
@@ -492,9 +496,10 @@ describe('groups', () => {
       store.assignPanel(iid, gid);
     });
     const group = screen.getByRole('region', { name: 'Group Ops' });
+    expect(useCanvasStore.getState().panels[iid]).toMatchObject({ x: 1, y: 2 });
     dragHeader(headerOf(group), [60, 60], [110, 90]);
     expect(useCanvasStore.getState().groups['group#1']).toMatchObject({ x: 2, y: 2 });
-    expect(useCanvasStore.getState().panels[iid]).toMatchObject({ x: 3, y: 4 });
+    expect(useCanvasStore.getState().panels[iid]).toMatchObject({ x: 2, y: 3 });
 
     fireEvent.contextMenu(headerOf(group));
     fireEvent.click(menuItem('Colour'));

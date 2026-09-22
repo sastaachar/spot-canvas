@@ -338,6 +338,13 @@ function addPanel(ctx: ToolContext, raw: unknown): ToolOutcome {
     groupId: group?.gid ?? null
   };
   ctx.layout.panels.push(panel);
+  // A group grows to hold what is placed inside it, like the page does.
+  if (group) {
+    const bottom = panel.y + panel.h - group.y;
+    if (bottom > group.h) group.h = clampInt(bottom, MIN_GROUP.h, GRID.rows - group.y);
+    const right = panel.x + panel.w - group.x;
+    if (right > group.w) group.w = clampInt(right, MIN_GROUP.w, GRID.cols - group.x);
+  }
   const where = group ? ` in ${group.title}` : '';
   return {
     result: { iid: panel.iid, x: panel.x, y: panel.y, w, h, group_id: panel.groupId },

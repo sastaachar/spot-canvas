@@ -1,6 +1,6 @@
 import type { PluginManifest } from '@spot-canvas/sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { selectInstalledIds, selectOrderedPanels, useCanvasStore } from './store';
+import { reflowGroup, selectInstalledIds, selectOrderedPanels, useCanvasStore } from './store';
 
 const manifest: PluginManifest = {
   apiVersion: 1,
@@ -152,6 +152,48 @@ describe('canvas store', () => {
     expect(useCanvasStore.getState().preferences).toEqual({ theme: 'system' });
     useCanvasStore.getState().setPreferences({ theme: 'dark' });
     expect(useCanvasStore.getState().preferences.theme).toBe('dark');
+  });
+
+  it('flows members inside a group, rewraps on resize, and grows the group to fit', () => {
+    const s = useCanvasStore.getState();
+    const gid = s.addGroup({ x: 2, y: 2, w: 10, h: 7 }, 'Flow');
+    const a = s.addPanel(manifest, { x: 20, y: 10, w: 4, h: 3 });
+    const b = s.addPanel(manifest, { x: 20, y: 12, w: 4, h: 3 });
+    const c = s.addPanel(manifest, { x: 21, y: 13, w: 4, h: 3 });
+    s.assignPanel(a, gid);
+    s.assignPanel(b, gid);
+    s.assignPanel(c, gid);
+    let panels = useCanvasStore.getState().panels;
+    // reading order fills the row under the title, then wraps
+    expect(panels[a]).toMatchObject({ x: 2, y: 3 });
+    expect(panels[b]).toMatchObject({ x: 6, y: 3 });
+    expect(panels[c]).toMatchObject({ x: 2, y: 6 });
+    expect(useCanvasStore.getState().groups[gid]).toMatchObject({ h: 7 });
+
+    // narrower group: one per row, and the group grows to hold them
+    s.resizeGroup(gid, 5, 7);
+    panels = useCanvasStore.getState().panels;
+    expect(panels[a]).toMatchObject({ x: 2, y: 3, w: 4 });
+    expect(panels[b]).toMatchObject({ x: 2, y: 6 });
+    expect(panels[c]).toMatchObject({ x: 2, y: 9 });
+    expect(useCanvasStore.getState().groups[gid]).toMatchObject({ w: 5, h: 10 });
+
+    // widgets wider than the group shrink to its width
+    s.resizeGroup(gid, 4, 10);
+    expect(useCanvasStore.getState().panels[a]!.w).toBe(4);
+    s.resizePanel(a, 8, 3);
+    expect(useCanvasStore.getState().panels[a]!.w).toBe(4);
+
+    // leaving the group frees the slot and the rest close up
+    s.assignPanel(a, null);
+    panels = useCanvasStore.getState().panels;
+    expect(panels[b]).toMatchObject({ x: 2, y: 3 });
+    expect(panels[c]).toMatchObject({ x: 2, y: 6 });
+    s.removePanel(b);
+    expect(useCanvasStore.getState().panels[c]).toMatchObject({ x: 2, y: 3 });
+
+    const untouched = { gid: 'g#9', title: 'x', x: 0, y: 0, w: 4, h: 3, color: 'blue' as const };
+    expect(reflowGroup({}, untouched)).toEqual({ panels: {}, group: untouched });
   });
 
   it('toggles the drawer and switches tab only when asked', () => {

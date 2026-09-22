@@ -412,11 +412,17 @@ h3 {
   cursor: grabbing;
 }
 
-/* No name given: the header is just a slim drag handle. */
-.panel__head.is-blank {
-  height: 14px;
-  border-bottom: 0;
-  background: var(--surface-2);
+/* Move mode: a transparent layer over the whole widget is the drag handle. */
+.panel__mover {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+  touch-action: none;
+  z-index: 2;
+}
+
+.panel__mover:active {
+  cursor: grabbing;
 }
 
 .panel__name {

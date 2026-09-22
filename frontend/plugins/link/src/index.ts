@@ -50,7 +50,7 @@ export default definePlugin({
     name: 'Link',
     kind: 'widget',
     version: '0.2.0',
-    size: [240, 120],
+    size: [200, 120],
     permissions: ['storage']
   },
   mount(host, api) {

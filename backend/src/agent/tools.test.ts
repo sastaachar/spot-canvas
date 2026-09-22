@@ -86,6 +86,15 @@ describe('panels', () => {
     await applyTool('add_panel', { plugin_id: 'spotcanvas.note', group_id: 'group#1' }, ctx);
     const fourth = ctx.layout.panels[3]!;
     expect(fourth).toMatchObject({ x: 2, y: 6 });
+    expect(ctx.layout.groups![0]).toMatchObject({ w: 12, h: 8 });
+
+    // a fifth and sixth widget overflow the 8-row group: it grows to hold them
+    await applyTool('add_panel', { plugin_id: 'spotcanvas.note', group_id: 'group#1' }, ctx);
+    await applyTool('add_panel', { plugin_id: 'spotcanvas.note', group_id: 'group#1' }, ctx);
+    await applyTool('add_panel', { plugin_id: 'spotcanvas.note', group_id: 'group#1' }, ctx);
+    const seventh = ctx.layout.panels[6]!;
+    expect(seventh.y + seventh.h).toBeGreaterThan(2 + 8);
+    expect(ctx.layout.groups![0]!.h).toBe(seventh.y + seventh.h - 2);
   });
 });
 

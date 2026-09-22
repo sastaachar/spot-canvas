@@ -88,8 +88,51 @@ interface CanvasState {
 
 const ORIGIN = { x: 1, y: 1 };
 const STAGGER = 1;
+const GROUP_TITLE_ROWS = 1;
 
-export const useCanvasStore = create<CanvasState>()((set, get) => ({
+/**
+ * Members of a group flow inside it, left to right then down, in reading order.
+ * Widgets wider than the group shrink to fit; a group grows taller to hold its content.
+ */
+export function reflowGroup(panels: Record<string, PanelState>, group: GroupState): { panels: Record<string, PanelState>; group: GroupState } {
+  const members = Object.values(panels)
+    .filter((p) => p.groupId === group.gid)
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+  if (members.length === 0) return { panels, group };
+  const innerX = group.x;
+  const innerY = group.y + GROUP_TITLE_ROWS;
+  const innerW = group.w;
+  let cursorX = innerX;
+  let cursorY = innerY;
+  let rowH = 0;
+  const next = { ...panels };
+  for (const m of members) {
+    const w = Math.min(m.w, innerW);
+    if (cursorX + w > innerX + innerW && cursorX > innerX) {
+      cursorX = innerX;
+      cursorY += rowH;
+      rowH = 0;
+    }
+    const y = Math.min(cursorY, GRID.rows - m.h);
+    if (m.x !== cursorX || m.y !== y || m.w !== w) next[m.iid] = { ...m, x: cursorX, y, w };
+    cursorX += w;
+    rowH = Math.max(rowH, m.h);
+  }
+  const needed = cursorY + rowH - group.y;
+  const h = clampInt(Math.max(group.h, needed), MIN_GROUP.h, GRID.rows - group.y);
+  return { panels: next, group: h === group.h ? group : { ...group, h } };
+}
+
+export const useCanvasStore = create<CanvasState>()((set, get) => {
+  const reflow = (gid: string | null | undefined) => {
+    if (!gid) return;
+    const group = get().groups[gid];
+    if (!group) return;
+    const result = reflowGroup(get().panels, group);
+    set({ panels: result.panels, groups: { ...get().groups, [gid]: result.group } });
+  };
+
+  return {
   panels: {},
   suites: {},
   groups: {},
@@ -122,8 +165,9 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
   },
 
   removePanel(iid) {
-    const { [iid]: _removed, ...rest } = get().panels;
+    const { [iid]: removed, ...rest } = get().panels;
     set({ panels: rest });
+    reflow(removed?.groupId);
   },
 
   movePanel(iid, x, y) {
@@ -142,6 +186,7 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
     const nh = clampInt(h, MIN_PANEL.h, GRID.rows - panel.y);
     if (nw === panel.w && nh === panel.h) return;
     set({ panels: { ...get().panels, [iid]: { ...panel, w: nw, h: nh } } });
+    reflow(panel.groupId);
   },
 
   focusPanel(iid) {
@@ -224,6 +269,7 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
     const nh = clampInt(h, MIN_GROUP.h, GRID.rows - group.y);
     if (nw === group.w && nh === group.h) return;
     set({ groups: { ...get().groups, [gid]: { ...group, w: nw, h: nh } } });
+    reflow(gid);
   },
 
   renameGroup(gid, title) {
@@ -242,8 +288,14 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
   assignPanel(iid, gid) {
     const panel = get().panels[iid];
     if (!panel || (gid !== null && !get().groups[gid])) return;
-    if (panel.groupId !== undefined && panel.groupId === gid) return;
+    if (panel.groupId !== undefined && panel.groupId === gid) {
+      reflow(gid);
+      return;
+    }
+    const previous = panel.groupId;
     set({ panels: { ...get().panels, [iid]: { ...panel, groupId: gid } } });
+    reflow(previous);
+    reflow(gid);
   },
 
   settlePanel(iid) {
@@ -297,7 +349,8 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
   setDrawer(open, tab) {
     set({ drawerOpen: open, ...(tab ? { drawerTab: tab } : {}) });
   }
-}));
+  };
+});
 
 export const selectOrderedPanels = (s: CanvasState): PanelState[] =>
   Object.values(s.panels).sort((a, b) => a.z - b.z);

@@ -151,7 +151,6 @@ export function Panel({ panel }: Props) {
 
   const onContextMenu = (e: ReactMouseEvent<HTMLElement>) => {
     e.stopPropagation();
-    if ((e.target as HTMLElement).closest('.panel__body')) return;
     e.preventDefault();
     openPanelMenu(e.clientX, e.clientY);
   };
@@ -168,25 +167,28 @@ export function Panel({ panel }: Props) {
       }}
       onContextMenu={onContextMenu}
     >
-      <header className={`panel__head${panel.title || renaming ? '' : ' is-blank'}`} onPointerDown={startDrag('move')} onDoubleClick={() => useUiStore.getState().setRenamingPanel(panel.iid)}>
-        {renaming ? (
-          <input
-            ref={renameRef}
-            className="panel__rename"
-            aria-label="Widget name"
-            value={draft}
-            maxLength={60}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commitRename}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitRename();
-              if (e.key === 'Escape') useUiStore.getState().setRenamingPanel(null);
-            }}
-          />
-        ) : (
-          panel.title && <span className="panel__name">{panel.title}</span>
-        )}
-      </header>
+      {(panel.title || renaming) && (
+        <header className="panel__head" onPointerDown={startDrag('move')} onDoubleClick={() => useUiStore.getState().setRenamingPanel(panel.iid)}>
+          {renaming ? (
+            <input
+              ref={renameRef}
+              className="panel__rename"
+              aria-label="Widget name"
+              value={draft}
+              maxLength={60}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename();
+                if (e.key === 'Escape') useUiStore.getState().setRenamingPanel(null);
+              }}
+            />
+          ) : (
+            <span className="panel__name">{panel.title}</span>
+          )}
+        </header>
+      )}
+      {moving && <div className="panel__mover" aria-label="Drag to move" onPointerDown={startDrag('move')} />}
       <div className="panel__body" ref={bodyRef} hidden={failed || !plugin} />
       {(failed || !plugin) && (
         <p className="panel__error">
