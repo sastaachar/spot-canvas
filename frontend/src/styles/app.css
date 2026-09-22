@@ -622,7 +622,119 @@ h3 {
   width: min(640px, calc(100% - 32px));
   display: grid;
   gap: 8px;
-  z-index: 25;
+  z-index: 45;
+}
+
+.chat.is-expanded {
+  width: min(720px, calc(100% - 32px));
+}
+
+.chat__panel {
+  display: flex;
+  flex-direction: column;
+  height: 40vh;
+  min-height: 240px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: chat-rise 180ms ease-out;
+}
+
+@keyframes chat-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat__panel {
+    animation: none;
+  }
+}
+
+.chat__panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.chat__panel-head h2 {
+  margin: 0;
+  flex: 1;
+  font-size: 13px;
+}
+
+.chat__panel-head button {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--muted);
+}
+
+.chat__panel-head button:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.chat__log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.chat__hint {
+  margin: auto 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  text-align: center;
+  padding: 0 24px;
+}
+
+.chat__msg {
+  max-width: 82%;
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat__msg--user {
+  justify-self: end;
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+  border-bottom-right-radius: 4px;
+}
+
+.chat__msg--assistant {
+  justify-self: start;
+  background: var(--surface-2);
+  color: var(--ink);
+  border-bottom-left-radius: 4px;
+}
+
+.chat__msg--assistant.is-pending {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.chat__msg--error {
+  justify-self: start;
+  background: color-mix(in srgb, var(--negative) 12%, transparent);
+  color: var(--negative);
 }
 
 .chat__bubble {

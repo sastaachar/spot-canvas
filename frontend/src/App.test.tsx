@@ -584,6 +584,45 @@ describe('profile, theme and chat', () => {
     expect(screen.queryByRole('button', { name: /ThoughtSpot activity/ })).toBeNull();
   });
 
+  it('expands into a conversation panel when the bar is focused and collapses on outside click or Escape', async () => {
+    await renderSignedIn();
+    useChatStore.setState({ turns: [{ role: 'user', content: 'earlier question' }, { role: 'assistant', content: 'earlier answer' }] });
+    const input = screen.getByRole('textbox', { name: 'Message Spotter' });
+    expect(screen.queryByRole('dialog', { name: 'Spotter conversation' })).toBeNull();
+
+    fireEvent.focus(input);
+    const panel = screen.getByRole('dialog', { name: 'Spotter conversation' });
+    expect(within(panel).getByText('earlier question').className).toContain('chat__msg--user');
+    expect(within(panel).getByText('earlier answer').className).toContain('chat__msg--assistant');
+    expect(input.getAttribute('aria-expanded')).toBe('true');
+
+    fireEvent.pointerDown(canvas());
+    expect(screen.queryByRole('dialog', { name: 'Spotter conversation' })).toBeNull();
+
+    fireEvent.pointerDown(input);
+    expect(screen.getByRole('dialog', { name: 'Spotter conversation' })).toBeTruthy();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Spotter conversation' })).toBeNull();
+
+    fireEvent.focus(input);
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse' }));
+    expect(screen.queryByRole('dialog', { name: 'Spotter conversation' })).toBeNull();
+  });
+
+  it('shows replies in the transcript while expanded instead of the floating bubble', async () => {
+    await renderSignedIn();
+    api.sendChat.mockResolvedValue({ reply: 'Here you go.', changed: false, actions: [] });
+    const input = screen.getByRole('textbox', { name: 'Message Spotter' });
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: 'do something' } });
+    fireEvent.submit(input.closest('form')!);
+    const panel = screen.getByRole('dialog', { name: 'Spotter conversation' });
+    expect(within(panel).getByRole('status').textContent).toContain('working');
+    expect(await within(panel).findByText('Here you go.')).toBeTruthy();
+    expect(within(panel).getByText('do something')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Dismiss reply' })).toBeNull();
+  });
+
   it('shows chat errors in the bubble and keeps the page as it was', async () => {
     await renderSignedIn();
     api.sendChat.mockRejectedValue(new TypeError('Failed to fetch'));
