@@ -66,6 +66,16 @@ export type NotifyKind = 'info' | 'success' | 'error';
 
 export type EventHandler = (payload: unknown, from: string) => void;
 
+/** A right-click menu item a plugin contributes to its own panel. */
+export interface PluginCommand {
+  id: string;
+  label: string;
+  onSelect(): void;
+  icon?: string;
+  danger?: boolean;
+  disabled?: boolean;
+}
+
 export interface PluginApi {
   host: { kind: HostKind };
   storage: {
@@ -85,6 +95,10 @@ export interface PluginApi {
     style(css: string): void;
     setTitle(title: string | null): void;
     notify(message: string, kind?: NotifyKind): void;
+    /** Replace the panel's right-click menu items; pass [] to clear them. */
+    setCommands(commands: PluginCommand[]): void;
+    /** Open this panel's right-click menu at viewport coordinates (e.g. from an iframe). */
+    openMenu(x: number, y: number): void;
   };
   theme: {
     get(): ThemeName;

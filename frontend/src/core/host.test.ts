@@ -26,6 +26,8 @@ const deps = (overrides: Partial<HostDeps> = {}): HostDeps & { data: Record<stri
     resize: vi.fn(),
     close: vi.fn(),
     setTitle: vi.fn(),
+    setCommands: vi.fn(),
+    openMenu: vi.fn(),
     notify: vi.fn(),
     theme: () => 'light',
     onThemeChange: vi.fn(() => () => {}),
@@ -179,6 +181,8 @@ describe('settings', () => {
       resize() {},
       close() {},
       setTitle() {},
+      setCommands() {},
+      openMenu() {},
       notify() {},
       theme: () => 'light' as const,
       onThemeChange: () => () => {}

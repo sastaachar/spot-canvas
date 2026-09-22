@@ -1,6 +1,7 @@
 import type { SpotCanvasPlugin, SpotCanvasSuite } from '@spot-canvas/sdk';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { usePanelCommands } from '../core/commands';
 import { useMenuStore, type MenuTarget } from '../core/menu';
 import { getPlugin, suiteForPlugin, usePluginRegistry } from '../core/registry';
 import { GROUP_COLORS, useCanvasStore, type GroupColor } from '../core/store';
@@ -11,6 +12,7 @@ interface Action {
   kind: 'action';
   label: string;
   onSelect(): void;
+  icon?: string;
   danger?: boolean;
   disabled?: boolean;
   hint?: string;
@@ -20,6 +22,7 @@ interface Action {
 interface Submenu {
   kind: 'submenu';
   label: string;
+  icon?: string;
   items: Entry[];
 }
 
@@ -54,6 +57,7 @@ export function ContextMenu() {
   const groups = useCanvasStore((s) => s.groups);
   const hasContent = useCanvasStore((s) => Object.keys(s.panels).length > 0 || Object.keys(s.groups).length > 0);
   const panel = useCanvasStore((s) => (target.kind === 'panel' ? s.panels[target.iid] : undefined));
+  const pluginCommands = usePanelCommands((s) => (target.kind === 'panel' ? s.byPanel[target.iid] : undefined));
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -83,6 +87,7 @@ export function ContextMenu() {
   const addEntry = (plugin: SpotCanvasPlugin, at: { x: number; y: number }): Action => ({
     kind: 'action',
     label: plugin.manifest.name,
+    icon: '＋',
     hint: plugin.manifest.kind,
     onSelect: () =>
       runAfterSetup(plugin.manifest.id, () => {
@@ -96,6 +101,7 @@ export function ContextMenu() {
     return {
       kind: 'action',
       label: `${suite.manifest.name} settings…`,
+      icon: '⚙',
       hint: configured ? 'configured' : 'needs setup',
       onSelect: () => useSetupStore.getState().open(suite.manifest.id)
     };
@@ -117,21 +123,24 @@ export function ContextMenu() {
     const at = canvasPoint(x, y);
     const configurable = suites.filter(hasSetup);
     return [
-      { kind: 'submenu', label: 'Add plugin', items: addMenu(at) },
+      { kind: 'submenu', label: 'Add plugin', icon: '＋', items: addMenu(at) },
       {
         kind: 'action',
         label: 'New group here',
+        icon: '▧',
         onSelect: () => {
           const gid = addGroup(at);
           useUiStore.getState().setRenaming(gid);
         }
       },
-      ...(configurable.length > 0 ? [{ kind: 'submenu', label: 'Suites', items: configurable.map(setupEntry) } as Submenu] : []),
-      { kind: 'action', label: 'Load plugin from URL…', onSelect: () => setDrawer(true, 'developer') },
+      ...(configurable.length > 0
+        ? [{ kind: 'submenu', label: 'Suites', icon: '◱', items: configurable.map(setupEntry) } as Submenu]
+        : []),
+      { kind: 'action', label: 'Load plugin from URL…', icon: '⚓', onSelect: () => setDrawer(true, 'developer') },
       'separator',
-      { kind: 'action', label: 'Clear homepage', danger: true, disabled: !hasContent, onSelect: clearPanels },
+      { kind: 'action', label: 'Clear homepage', icon: '⌫', danger: true, disabled: !hasContent, onSelect: clearPanels },
       'separator',
-      { kind: 'action', label: 'Profile & appearance…', onSelect: () => useUiStore.getState().setProfileOpen(true) }
+      { kind: 'action', label: 'Profile & appearance…', icon: '☺', onSelect: () => useUiStore.getState().setProfileOpen(true) }
     ];
   }
 
@@ -149,12 +158,22 @@ export function ContextMenu() {
         onSelect: () => assignPanel(t.iid, g.gid)
       }))
     ];
+    // Plugin-contributed actions come first — this is the whole menu for a chromeless widget.
+    const commandEntries: Entry[] = (pluginCommands ?? []).map<Entry>((c) => ({
+      kind: 'action',
+      label: c.label,
+      icon: c.icon,
+      danger: c.danger,
+      disabled: c.disabled,
+      onSelect: c.onSelect
+    }));
     return [
-      { kind: 'action', label: 'Bring to front', onSelect: () => focusPanel(t.iid) },
-      ...(Object.keys(groups).length > 0 ? [{ kind: 'submenu', label: 'Group', items: groupItems } as Submenu] : []),
+      ...(commandEntries.length > 0 ? [...commandEntries, 'separator' as const] : []),
+      { kind: 'action', label: 'Bring to front', icon: '⤒', onSelect: () => focusPanel(t.iid) },
+      ...(Object.keys(groups).length > 0 ? [{ kind: 'submenu', label: 'Group', icon: '▧', items: groupItems } as Submenu] : []),
       ...(suite && hasSetup(suite) ? [setupEntry(suite)] : []),
       'separator',
-      { kind: 'action', label: `Remove ${name}`, danger: true, onSelect: () => removePanel(t.iid) }
+      { kind: 'action', label: `Remove ${name}`, icon: '⌫', danger: true, onSelect: () => removePanel(t.iid) }
     ];
   }
 
@@ -163,10 +182,11 @@ export function ContextMenu() {
     const group = groups[t.gid];
     const members = Object.values(useCanvasStore.getState().panels).filter((p) => p.groupId === t.gid).length;
     return [
-      { kind: 'action', label: 'Rename', onSelect: () => useUiStore.getState().setRenaming(t.gid) },
+      { kind: 'action', label: 'Rename', icon: '✎', onSelect: () => useUiStore.getState().setRenaming(t.gid) },
       {
         kind: 'submenu',
         label: 'Colour',
+        icon: '◑',
         items: GROUP_COLORS.map<Entry>((c) => ({
           kind: 'action',
           label: COLOR_LABEL[c],
@@ -175,10 +195,11 @@ export function ContextMenu() {
         }))
       },
       'separator',
-      { kind: 'action', label: 'Ungroup', hint: members > 0 ? 'keeps panels' : undefined, onSelect: () => removeGroup(t.gid, false) },
+      { kind: 'action', label: 'Ungroup', icon: '⤢', hint: members > 0 ? 'keeps panels' : undefined, onSelect: () => removeGroup(t.gid, false) },
       {
         kind: 'action',
         label: members > 0 ? `Remove group and ${members === 1 ? 'its panel' : `${members} panels`}` : 'Remove group',
+        icon: '⌫',
         danger: true,
         onSelect: () => removeGroup(t.gid, true)
       }
@@ -230,7 +251,10 @@ function MenuList({ entries, onClose }: ListProps) {
                 className="menu__item"
                 onClick={() => setOpenSub(isOpen ? null : entry.label)}
               >
-                <span>{entry.label}</span>
+                <span className="menu__icon" aria-hidden="true">
+                  {entry.icon}
+                </span>
+                <span className="menu__label">{entry.label}</span>
                 <span className="menu__chevron" aria-hidden="true">
                   ›
                 </span>
@@ -260,7 +284,10 @@ function MenuList({ entries, onClose }: ListProps) {
               entry.onSelect();
             }}
           >
-            <span>{entry.label}</span>
+            <span className="menu__icon" aria-hidden="true">
+              {entry.icon}
+            </span>
+            <span className="menu__label">{entry.label}</span>
             {entry.hint && <span className="menu__hint">{entry.hint}</span>}
           </button>
         );

@@ -46,17 +46,22 @@ const CHART_FLAGS = [
   'muzeFunnelChartEnabled'
 ];
 
+// The chart is chromeless: no toolbar, just the stage. Actions live in the panel's
+// right-click menu (api.ui.setCommands); the prompt card only appears when asked.
 const CSS = `
-.ts-chart { display: flex; flex-direction: column; height: 100%; }
-.ts-chart form { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid var(--border); }
-.ts-chart form[hidden] { display: none; }
-.ts-chart input { flex: 1; min-width: 0; height: 28px; border: 1px solid var(--border); border-radius: 4px; padding: 0 8px; background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 11.5px; }
-.ts-chart a.tb-btn { text-decoration: none; display: inline-flex; align-items: center; }
-.ts-chart a.tb-btn[aria-disabled="true"] { pointer-events: none; opacity: 0.5; }
-.ts-chart__hint { padding: 6px 8px 0; color: var(--negative); font-size: 12px; }
-.ts-chart__stage { flex: 1; min-height: 0; position: relative; background: var(--surface); }
+.ts-chart { position: relative; height: 100%; background: var(--surface); }
+.ts-chart__stage { position: absolute; inset: 0; }
 .ts-chart__stage iframe { width: 100%; height: 100%; border: 0; display: block; }
-.ts-chart__empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 13px; text-align: center; padding: 16px; }
+.ts-chart__empty { position: absolute; inset: 0; display: grid; place-items: center; gap: 4px; color: var(--muted); font-size: 13px; text-align: center; padding: 16px; }
+.ts-chart__empty small { color: var(--muted); opacity: 0.75; font-size: 11.5px; }
+.ts-chart__card { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--surface) 82%, transparent); }
+.ts-chart__card[hidden] { display: none; }
+.ts-chart__form { width: min(440px, 100%); display: grid; gap: 8px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; padding: 14px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18); }
+.ts-chart__form label { font-size: 11px; font-weight: 600; color: var(--muted); }
+.ts-chart__form input { height: 30px; border: 1px solid var(--border); border-radius: 6px; padding: 0 9px; background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 11.5px; }
+.ts-chart__row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 2px; }
+.ts-chart__hint { color: var(--negative); font-size: 12px; }
+.ts-chart__hint[hidden] { display: none; }
 `;
 
 interface ChartQuery {
@@ -79,70 +84,54 @@ export default definePlugin({
     const pageOrigin = new URL(document.baseURI).origin;
 
     const root = h('div', 'ts-chart');
-    const form = h('form');
+    const stage = h('div', 'ts-chart__stage');
+
+    // Prompt card — the only chrome, shown only when asking for an Answer ID or the
+    // ThoughtSpot URL. Everything else is reached through the right-click menu.
+    const card = h('div', 'ts-chart__card');
+    card.hidden = true;
+    const form = h('form', 'ts-chart__form');
+    const label = h('label');
     const input = h('input');
-    input.type = 'text';
-    input.placeholder = 'Answer ID, e.g. 0fb54198-868d-45de-8929-139b0089e964';
-    input.value = state.answerId;
-    input.setAttribute('aria-label', 'ThoughtSpot Answer ID');
-    const go = h('button', 'tb-btn tb-btn--primary', 'Load');
-    go.type = 'submit';
-    const refresh = h('button', 'tb-btn', 'Refresh');
-    refresh.type = 'button';
-    refresh.title = 'Reload the chart with current data';
-    const edit = h('a', 'tb-btn', 'Edit in ThoughtSpot ↗');
-    edit.target = '_blank';
-    edit.rel = 'noopener noreferrer';
-    const settingsToggle = h('button', 'tb-btn', '⚙');
-    settingsToggle.type = 'button';
-    settingsToggle.setAttribute('aria-label', 'Settings');
-    form.append(input, go, refresh, edit, settingsToggle);
-
-    // Settings row: the ThoughtSpot URL used by "Edit in ThoughtSpot" (hidden behind ⚙).
-    const settings = h('form');
-    settings.hidden = true;
-    const tsHostInput = h('input');
-    tsHostInput.type = 'url';
-    tsHostInput.placeholder = 'ThoughtSpot URL, e.g. https://my-cluster.thoughtspot.cloud';
-    tsHostInput.value = state.tsHost;
-    tsHostInput.setAttribute('aria-label', 'ThoughtSpot URL');
-    const saveSettings = h('button', 'tb-btn tb-btn--primary', 'Save');
-    saveSettings.type = 'submit';
-    settings.append(tsHostInput, saveSettings);
-
+    input.setAttribute('aria-label', 'ThoughtSpot value');
     const hint = h('div', 'ts-chart__hint');
     hint.hidden = true;
-    const stage = h('div', 'ts-chart__stage');
-    root.append(form, settings, hint, stage);
+    const row = h('div', 'ts-chart__row');
+    const cancel = h('button', 'tb-btn', 'Cancel');
+    cancel.type = 'button';
+    const submit = h('button', 'tb-btn tb-btn--primary', 'Load');
+    submit.type = 'submit';
+    row.append(cancel, submit);
+    form.append(label, input, hint, row);
+    card.append(form);
+    root.append(stage, card);
     host.append(root);
 
     /** Cluster the site's credentials belong to (TS_HOST behind the proxy); user override wins. */
     let discoveredTsHost = '';
+    type Prompt = 'none' | 'answer' | 'tshost';
+    let prompt: Prompt = 'none';
 
-    /** Keeps Refresh / Edit in sync with what is loaded and where the cluster is. */
-    const updateActions = () => {
-      refresh.disabled = !state.answerId;
+    /** The "Open in ThoughtSpot" link for the current answer, or null when unavailable. */
+    const currentEditUrl = (): string | null => {
       const endpoint = new URL(state.endpoint, document.baseURI);
-      const link = editUrl(resolveTsHost(state.tsHost, endpoint, discoveredTsHost), state.answerId);
-      if (link) {
-        edit.href = link;
-        edit.removeAttribute('aria-disabled');
-        edit.title = 'Open this answer in ThoughtSpot';
-      } else {
-        edit.removeAttribute('href');
-        edit.setAttribute('aria-disabled', 'true');
-        edit.title = state.answerId ? 'Set the ThoughtSpot URL in ⚙ to enable' : 'Load an answer first';
-      }
+      return editUrl(resolveTsHost(state.tsHost, endpoint, discoveredTsHost), state.answerId);
     };
 
     let stopListening: (() => void) | null = null;
     let generation = 0;
 
-    const showEmpty = (text: string) => stage.replaceChildren(h('div', 'ts-chart__empty', text));
+    const showEmpty = (text: string) => {
+      const empty = h('div', 'ts-chart__empty');
+      empty.append(h('div', undefined, text), h('small', undefined, 'Right-click or use ⋯ for options'));
+      stage.replaceChildren(empty);
+    };
     const showError = (error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
-      hint.textContent = message;
-      hint.hidden = false;
+      if (!card.hidden) {
+        hint.textContent = message;
+        hint.hidden = false;
+      }
       showEmpty('Could not load this chart.');
       api.ui.notify(message, 'error');
     };
@@ -230,6 +219,15 @@ export default definePlugin({
           }
         }
       );
+      // Right-clicks inside the (same-origin) chart iframe don't reach the host, so
+      // forward them to the panel menu translated into page coordinates.
+      frame.addEventListener('load', () => {
+        frame.contentDocument?.addEventListener('contextmenu', (ev) => {
+          ev.preventDefault();
+          const rect = frame.getBoundingClientRect();
+          api.ui.openMenu(rect.left + ev.clientX, rect.top + ev.clientY);
+        });
+      });
       stage.replaceChildren(frame);
     };
 
@@ -237,7 +235,6 @@ export default definePlugin({
       const gen = ++generation;
       stopListening?.();
       stopListening = null;
-      hint.hidden = true;
       showEmpty('Loading chart…');
       const endpoint = new URL(state.endpoint, document.baseURI);
       const res = await api.net.fetch(endpoint, buildRequest(endpoint, answerId));
@@ -246,30 +243,83 @@ export default definePlugin({
       mountChart(source);
     };
 
+    const closePrompt = () => {
+      prompt = 'none';
+      card.hidden = true;
+      hint.hidden = true;
+      if (!state.answerId) showEmpty('No answer loaded.');
+    };
+
+    // Show the prompt card for either the Answer ID or the ThoughtSpot URL.
+    const openPrompt = (mode: 'answer' | 'tshost') => {
+      prompt = mode;
+      hint.hidden = true;
+      if (mode === 'answer') {
+        label.textContent = 'ThoughtSpot Answer ID';
+        input.type = 'text';
+        input.placeholder = 'e.g. 0fb54198-868d-45de-8929-139b0089e964';
+        input.value = state.answerId;
+        submit.textContent = 'Load';
+      } else {
+        label.textContent = 'ThoughtSpot URL (for “Open in ThoughtSpot”)';
+        input.type = 'url';
+        input.placeholder = discoveredTsHost || 'https://my-cluster.thoughtspot.cloud';
+        input.value = state.tsHost;
+        submit.textContent = 'Save';
+      }
+      // Cancelling only makes sense once something is already on screen.
+      cancel.hidden = mode === 'answer' && !state.answerId;
+      card.hidden = false;
+      input.focus();
+      input.select();
+    };
+
+    // Rebuild the right-click menu to match what is currently loaded.
+    const updateCommands = () => {
+      const loaded = Boolean(state.answerId);
+      const link = currentEditUrl();
+      api.ui.setCommands([
+        {
+          id: 'open',
+          label: 'Open in ThoughtSpot ↗',
+          icon: '↗',
+          disabled: !link,
+          onSelect: () => {
+            if (link) window.open(link, '_blank', 'noopener,noreferrer');
+          }
+        },
+        { id: 'refresh', label: 'Refresh', icon: '⟳', disabled: !loaded, onSelect: () => render(state.answerId).catch(showError) },
+        { id: 'answer', label: loaded ? 'Change answer…' : 'Load answer…', icon: '◔', onSelect: () => openPrompt('answer') },
+        { id: 'tshost', label: 'Set ThoughtSpot URL…', icon: '⚙', onSelect: () => openPrompt('tshost') }
+      ]);
+    };
+
     form.onsubmit = (e) => {
       e.preventDefault();
-      const answerId = input.value.trim();
-      if (!answerId) return;
-      state.answerId = answerId;
+      const value = input.value.trim();
+      if (prompt === 'tshost') {
+        state.tsHost = value;
+        api.storage.set(state);
+        closePrompt();
+        updateCommands();
+        api.ui.notify(value ? 'ThoughtSpot URL saved.' : 'ThoughtSpot URL cleared.', 'success');
+        return;
+      }
+      if (!value) return;
+      state.answerId = value;
       api.storage.set(state);
-      updateActions();
-      render(answerId).catch(showError);
+      closePrompt();
+      updateCommands();
+      render(value).catch(showError);
     };
-    refresh.onclick = () => {
-      if (state.answerId) render(state.answerId).catch(showError);
-    };
-    settingsToggle.onclick = () => {
-      settings.hidden = !settings.hidden;
-      if (!settings.hidden) tsHostInput.focus();
-    };
-    settings.onsubmit = (e) => {
+    cancel.onclick = () => closePrompt();
+
+    // Right-clicks on the chrome (empty state / card) open the same panel menu.
+    root.addEventListener('contextmenu', (e) => {
       e.preventDefault();
-      state.tsHost = tsHostInput.value.trim();
-      api.storage.set(state);
-      settings.hidden = true;
-      updateActions();
-      api.ui.notify(state.tsHost ? 'ThoughtSpot URL saved.' : 'ThoughtSpot URL cleared.', 'success');
-    };
+      e.stopPropagation();
+      api.ui.openMenu(e.clientX, e.clientY);
+    });
 
     api.theme.onChange(() => {
       if (state.answerId) render(state.answerId).catch(showError);
@@ -279,13 +329,12 @@ export default definePlugin({
       stopListening?.();
     });
 
-    updateActions();
+    updateCommands();
     fetchDiscoveredTsHost((url) => api.net.fetch(url), new URL(state.endpoint, document.baseURI)).then((tsHost) => {
       discoveredTsHost = tsHost;
-      tsHostInput.placeholder = tsHost ? `${tsHost} (from the site's config)` : tsHostInput.placeholder;
-      updateActions();
+      updateCommands();
     });
     if (state.answerId) render(state.answerId).catch(showError);
-    else showEmpty('Enter a ThoughtSpot Answer ID above and press Load.');
+    else openPrompt('answer');
   }
 });

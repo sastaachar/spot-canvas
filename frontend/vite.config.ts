@@ -98,7 +98,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      '/api': 'http://127.0.0.1:8787',
+      '/api': process.env.API_URL ?? 'http://127.0.0.1:8787',
       '/prism': {
         target: PRISM_URL,
         changeOrigin: true,

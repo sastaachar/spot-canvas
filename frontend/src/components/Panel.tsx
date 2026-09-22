@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { usePanelCommands } from '../core/commands';
 import { createPluginApi, EventBus } from '../core/host';
 import { useMenuStore } from '../core/menu';
 import { getPlugin } from '../core/registry';
@@ -55,6 +56,8 @@ export function Panel({ panel }: Props) {
       resize: store.resizePanel,
       close: store.removePanel,
       setTitle: store.setPanelTitle,
+      setCommands: usePanelCommands.getState().setCommands,
+      openMenu: (iid, x, y) => useMenuStore.getState().openMenu({ kind: 'panel', iid }, x, y),
       notify: useToastStore.getState().push,
       theme: currentTheme,
       onThemeChange,
@@ -76,6 +79,7 @@ export function Panel({ panel }: Props) {
         }
       }
       handle.dispose();
+      usePanelCommands.getState().clearCommands(panel.iid);
       root.replaceChildren();
     };
   }, [panel.iid, plugin]);
@@ -118,11 +122,21 @@ export function Panel({ panel }: Props) {
 
   const name = panel.title ?? plugin?.manifest.name ?? panel.pluginId;
 
+  const openPanelMenu = (x: number, y: number) => {
+    focusPanel(panel.iid);
+    useMenuStore.getState().openMenu({ kind: 'panel', iid: panel.iid }, x, y);
+  };
+
   const onContextMenu = (e: ReactMouseEvent<HTMLElement>) => {
     e.stopPropagation();
     if ((e.target as HTMLElement).closest('.panel__body')) return;
     e.preventDefault();
-    useMenuStore.getState().openMenu({ kind: 'panel', iid: panel.iid }, e.clientX, e.clientY);
+    openPanelMenu(e.clientX, e.clientY);
+  };
+
+  const onMenuButton = (e: ReactMouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    openPanelMenu(rect.left, rect.bottom + 4);
   };
 
   return (
@@ -136,6 +150,17 @@ export function Panel({ panel }: Props) {
       <header className="panel__head" onPointerDown={startDrag('move')}>
         <span className="panel__kind">{plugin?.manifest.kind ?? 'missing'}</span>
         <span className="panel__name">{name}</span>
+        <button
+          type="button"
+          className="panel__menu-btn"
+          aria-label={`${name} options`}
+          aria-haspopup="menu"
+          title="Options"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onMenuButton}
+        >
+          ⋯
+        </button>
         <button type="button" aria-label={`Close ${name}`} onClick={() => removePanel(panel.iid)}>
           ✕
         </button>
