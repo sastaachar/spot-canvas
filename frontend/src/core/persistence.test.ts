@@ -157,5 +157,7 @@ describe('applyLayoutDocument', () => {
     expect(await applyLayoutDocument(JSON.stringify({ version: 1, panels: [] }))).toBe(true);
     expect(useCanvasStore.getState().panels).toEqual({});
     expect(await applyLayoutDocument({ nope: true })).toBe(false);
+    expect(await applyLayoutDocument({ panels: [panel], groups: [], suites: {}, preferences: { theme: 'light' } })).toBe(true);
+    expect(useCanvasStore.getState().preferences.theme).toBe('light');
   });
 });

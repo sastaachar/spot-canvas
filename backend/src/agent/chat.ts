@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import type { FetchLike } from '../auth.ts';
+import type { ClusterSession, FetchLike } from '../auth.ts';
 import type { GatewayConfig, Identity } from '../config.ts';
 import type { Layout } from '../layouts.ts';
-import { applyTool, TOOLS, type CataloguePlugin } from './tools.ts';
+import { ThoughtSpotClient } from './thoughtspot.ts';
+import { applyTool, toolsFor, type CataloguePlugin, type ToolContext, type ToolDefinition, type ToolOutcome } from './tools.ts';
 
 export class AgentError extends Error {
   override name = 'AgentError';
@@ -19,6 +20,7 @@ export interface ChatRequest {
   catalogue: CataloguePlugin[];
   layout: Layout;
   user: Identity;
+  cluster?: ClusterSession | null;
 }
 
 export interface ChatResult {
@@ -60,7 +62,20 @@ type GatewayMessage =
   | { role: 'assistant'; content: string | null; tool_calls?: z.infer<typeof ToolCallSchema>[] }
   | { role: 'tool'; tool_call_id: string; content: string };
 
-function systemPrompt(user: Identity, catalogue: CataloguePlugin[]): string {
+function clusterSection(cluster: ClusterSession | null | undefined, catalogue: CataloguePlugin[]): string {
+  if (!cluster) {
+    return 'This user is not signed in to a ThoughtSpot cluster, so there are no cluster tools; work with the plugins above.';
+  }
+  const hasChart = catalogue.some((c) => c.id === 'spotcanvas.thoughtspot-chart');
+  const hasEmbed = catalogue.some((c) => c.id === 'spotcanvas.embed');
+  return `The user is signed in to ThoughtSpot at ${cluster.host}. Use list_recent_activity (their own last-opened liveboards and answers), list_favorites and search_thoughtspot to find their content.
+To put ThoughtSpot content on the page:
+${hasChart ? `- an answer → add_panel spotcanvas.thoughtspot-chart with data { "answerId": "<id>", "tsHost": "${cluster.host}" } and title = the answer name (size about 520x380).` : '- the chart plugin is not installed, so answers cannot be shown as charts.'}
+${hasEmbed ? `- a liveboard → add_panel spotcanvas.embed with data { "url": "${cluster.host}/#/pinboard/<id>" } and title = the liveboard name (size about 640x420).` : '- the embed plugin is not installed, so liveboards cannot be shown.'}
+When asked to build or fill a homepage from activity: call list_recent_activity (90 days) and list_favorites, pick the 4–8 most relevant objects (favourites and most recently or most often opened first), group them under short titles such as "Favourites" and "Recently used", and add a note summarising what you placed. Do not add the same object twice.`;
+}
+
+function systemPrompt(user: Identity, catalogue: CataloguePlugin[], cluster: ClusterSession | null | undefined): string {
   const plugins = catalogue.map((c) => `- ${c.id} ("${c.name}", ${c.kind}, ${c.size[0]}x${c.size[1]})`).join('\n');
   return `You are Spotter, the assistant inside Spot Canvas: a personal ThoughtSpot homepage where ${user.displayName} arranges plugin panels on a canvas and groups related panels inside titled rectangles.
 
@@ -79,6 +94,8 @@ Data shapes for first-party plugins (pass as "data"):
 - spotcanvas.timer: {} — no data.
 Other plugins: leave data empty unless the user tells you what to put in.
 
+${clusterSection(cluster, catalogue)}
+
 Rules:
 - Call get_homepage first whenever the request refers to existing panels or groups.
 - Never invent plugin ids. If nothing fits, say so briefly.
@@ -86,7 +103,12 @@ Rules:
 - Reply in one or two short sentences describing what changed. No markdown headings, no lists of tool calls.`;
 }
 
-async function complete(gateway: GatewayConfig, messages: GatewayMessage[], fetchImpl: FetchLike): Promise<z.infer<typeof CompletionSchema>> {
+async function complete(
+  gateway: GatewayConfig,
+  messages: GatewayMessage[],
+  tools: ToolDefinition[],
+  fetchImpl: FetchLike
+): Promise<z.infer<typeof CompletionSchema>> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let res: Response;
@@ -94,7 +116,7 @@ async function complete(gateway: GatewayConfig, messages: GatewayMessage[], fetc
     res = await fetchImpl(`${gateway.url}/chat/completions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${gateway.key}`, 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ model: gateway.model, messages, tools: TOOLS, tool_choice: 'auto', max_tokens: MAX_TOKENS, temperature: TEMPERATURE }),
+      body: JSON.stringify({ model: gateway.model, messages, tools, tool_choice: 'auto', max_tokens: MAX_TOKENS, temperature: TEMPERATURE }),
       signal: controller.signal
     });
   } catch {
@@ -114,20 +136,31 @@ async function complete(gateway: GatewayConfig, messages: GatewayMessage[], fetc
   return parsed.data;
 }
 
-export async function runChat(req: ChatRequest, gateway: GatewayConfig, fetchImpl: FetchLike = fetch): Promise<ChatResult> {
+export interface RunChatOptions {
+  fetchImpl?: FetchLike;
+  clusterFetch?: FetchLike;
+}
+
+export async function runChat(req: ChatRequest, gateway: GatewayConfig, options: RunChatOptions = {}): Promise<ChatResult> {
+  const fetchImpl = options.fetchImpl ?? fetch;
   const layout: Layout = structuredClone(req.layout);
-  const ctx = { layout, catalogue: req.catalogue };
+  const ctx: ToolContext = {
+    layout,
+    catalogue: req.catalogue,
+    thoughtSpot: req.cluster ? new ThoughtSpotClient(req.cluster, options.clusterFetch ?? fetch) : null
+  };
+  const tools = toolsFor(ctx);
   const actions: string[] = [];
   let changed = false;
 
   const messages: GatewayMessage[] = [
-    { role: 'system', content: systemPrompt(req.user, req.catalogue) },
+    { role: 'system', content: systemPrompt(req.user, req.catalogue, req.cluster) },
     ...req.history.slice(-MAX_HISTORY).map<GatewayMessage>((m) => ({ role: m.role, content: m.content })),
     { role: 'user', content: req.message }
   ];
 
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
-    const completion = await complete(gateway, messages, fetchImpl);
+    const completion = await complete(gateway, messages, tools, fetchImpl);
     const message = completion.choices[0]!.message;
     const calls = message.tool_calls ?? [];
     if (calls.length === 0) {
@@ -135,14 +168,15 @@ export async function runChat(req: ChatRequest, gateway: GatewayConfig, fetchImp
     }
     messages.push({ role: 'assistant', content: message.content ?? null, tool_calls: calls });
     for (const call of calls) {
+      let outcome: ToolOutcome;
       let args: unknown = {};
-      let outcome;
+      let parsedOk = true;
       try {
         args = call.function.arguments.trim() ? JSON.parse(call.function.arguments) : {};
-        outcome = applyTool(call.function.name, args, ctx);
       } catch {
-        outcome = { result: { error: 'arguments were not valid JSON' }, changed: false };
+        parsedOk = false;
       }
+      outcome = parsedOk ? await applyTool(call.function.name, args, ctx) : { result: { error: 'arguments were not valid JSON' }, changed: false };
       if (outcome.changed) {
         changed = true;
         actions.push(call.function.name);

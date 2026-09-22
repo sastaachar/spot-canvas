@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Layout } from '../layouts.ts';
+import { ThoughtSpotError, type ThoughtSpotClient } from './thoughtspot.ts';
 
 export const CataloguePluginSchema = z.object({
   id: z.string().min(1).max(200),
@@ -14,6 +15,7 @@ export type CataloguePlugin = z.infer<typeof CataloguePluginSchema>;
 export interface ToolContext {
   layout: Layout;
   catalogue: CataloguePlugin[];
+  thoughtSpot?: ThoughtSpotClient | null;
 }
 
 export interface ToolOutcome {
@@ -435,7 +437,100 @@ function clearHomepage(ctx: ToolContext): ToolOutcome {
   return { result: { ok: true, removed: had }, changed: had > 0 };
 }
 
-export function applyTool(name: string, args: unknown, ctx: ToolContext): ToolOutcome {
+const OBJECT_TYPES = ['liveboard', 'answer'] as const;
+const DEFAULT_ACTIVITY_DAYS = 90;
+const MAX_ACTIVITY_DAYS = 365;
+
+export const THOUGHTSPOT_TOOLS: ToolDefinition[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'list_recent_activity',
+      description:
+        "Liveboards and answers this user opened recently on their ThoughtSpot cluster, most recent first, with per-user last_accessed, global views and is_favorite. Use it to learn what they actually work with.",
+      parameters: {
+        type: 'object',
+        properties: {
+          days: num(`look back this many days, default ${DEFAULT_ACTIVITY_DAYS}`),
+          limit: num('max objects, default 30'),
+          types: { type: 'array', items: { type: 'string', enum: [...OBJECT_TYPES] }, description: 'default both' }
+        },
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_favorites',
+      description: "The user's favourite liveboards and answers on their ThoughtSpot cluster, in the order they arranged them.",
+      parameters: {
+        type: 'object',
+        properties: { types: { type: 'array', items: { type: 'string', enum: [...OBJECT_TYPES] } } },
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_thoughtspot',
+      description: 'Find liveboards and answers on the cluster by name. Use when the user names something you have not seen in activity or favourites.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: str('part of the name; empty lists the most recently modified'),
+          types: { type: 'array', items: { type: 'string', enum: [...OBJECT_TYPES] } },
+          limit: num('max results, default 30')
+        },
+        required: ['query'],
+        additionalProperties: false
+      }
+    }
+  }
+];
+
+const TypesArg = z.array(z.enum(OBJECT_TYPES)).min(1).optional();
+const ActivityArgs = z.object({
+  days: z.number().int().min(1).max(MAX_ACTIVITY_DAYS).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+  types: TypesArg
+});
+const FavoritesArgs = z.object({ types: TypesArg });
+const SearchArgs = z.object({ query: z.string().max(200), types: TypesArg, limit: z.number().int().min(1).max(100).optional() });
+
+async function thoughtSpotTool(name: string, raw: unknown, ctx: ToolContext): Promise<ToolOutcome> {
+  const ts = ctx.thoughtSpot;
+  if (!ts) return fail('this user is not signed in to a ThoughtSpot cluster, so cluster tools are unavailable');
+  try {
+    if (name === 'list_recent_activity') {
+      const args = ActivityArgs.safeParse(raw ?? {});
+      if (!args.success) return fail('invalid arguments for list_recent_activity');
+      const objects = await ts.recentActivity(args.data.days ?? DEFAULT_ACTIVITY_DAYS, args.data.limit, args.data.types);
+      return { result: { cluster: ts.host, days: args.data.days ?? DEFAULT_ACTIVITY_DAYS, objects }, changed: false };
+    }
+    if (name === 'list_favorites') {
+      const args = FavoritesArgs.safeParse(raw ?? {});
+      if (!args.success) return fail('invalid arguments for list_favorites');
+      return { result: { cluster: ts.host, objects: await ts.favorites(args.data.types) }, changed: false };
+    }
+    const args = SearchArgs.safeParse(raw ?? {});
+    if (!args.success) return fail('invalid arguments for search_thoughtspot');
+    return { result: { cluster: ts.host, objects: await ts.search(args.data.query, args.data.types, args.data.limit) }, changed: false };
+  } catch (error) {
+    if (error instanceof ThoughtSpotError) return fail(error.message);
+    throw error;
+  }
+}
+
+export function toolsFor(ctx: ToolContext): ToolDefinition[] {
+  return ctx.thoughtSpot ? [...TOOLS, ...THOUGHTSPOT_TOOLS] : TOOLS;
+}
+
+export async function applyTool(name: string, args: unknown, ctx: ToolContext): Promise<ToolOutcome> {
+  if (name === 'list_recent_activity' || name === 'list_favorites' || name === 'search_thoughtspot') {
+    return thoughtSpotTool(name, args, ctx);
+  }
   switch (name) {
     case 'get_homepage':
       return { result: summary(ctx), changed: false };

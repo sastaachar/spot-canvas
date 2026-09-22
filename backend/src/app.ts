@@ -141,6 +141,7 @@ export function createApp(deps: AppDeps): Handler {
 
       const identity = identityOrDevDefault(req, res);
       if (!identity) throw new HttpError(401, 'unauthenticated');
+      const sid = parseCookies(req.headers.cookie).get(SESSION_COOKIE) ?? null;
 
       if (pathname === '/api/me' && method === 'GET') return sendJson(res, 200, { user: userView(identity) });
 
@@ -168,10 +169,11 @@ export function createApp(deps: AppDeps): Handler {
             history: parsed.data.history as ChatMessage[],
             catalogue: parsed.data.catalogue,
             layout,
-            user: identity
+            user: identity,
+            cluster: sid ? deps.sessions.cluster(sid) : null
           },
           config.gateway,
-          deps.gatewayFetch
+          { fetchImpl: deps.gatewayFetch, clusterFetch: deps.clusterFetch }
         );
         if (result.changed) await deps.layouts.write(identity.id, result.layout);
         return sendJson(res, 200, {

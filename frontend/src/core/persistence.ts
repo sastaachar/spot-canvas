@@ -154,8 +154,11 @@ export function attachPersistence(backend: LayoutBackend): () => void {
   };
 }
 
+const isLayoutDocument = (value: unknown): value is LayoutDocument =>
+  typeof value === 'object' && value !== null && Array.isArray((value as LayoutDocument).panels) && Array.isArray((value as LayoutDocument).groups) && !('version' in value);
+
 export async function applyLayoutDocument(doc: unknown): Promise<boolean> {
-  const parsed = parseLayoutDocument(typeof doc === 'string' ? doc : JSON.stringify(doc));
+  const parsed = isLayoutDocument(doc) ? doc : parseLayoutDocument(typeof doc === 'string' ? doc : JSON.stringify(doc));
   if (!parsed) return false;
   await loadSuiteModules(parsed.suites);
   useCanvasStore.getState().hydrate(parsed.panels, parsed.suites, parsed.groups, parsed.preferences);

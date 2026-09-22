@@ -38,6 +38,7 @@ import { useCanvasStore, type PanelState } from './core/store';
 import { useSetupStore } from './core/suites';
 import { useToastStore } from './core/toasts';
 import { useChatStore } from './core/chat';
+import { useGhostStore } from './core/ghosts';
 import { useUiStore } from './core/ui';
 
 const user = { id: 'u1', name: 'alice', displayName: 'Alice', cluster: 'my.thoughtspot.cloud' };
@@ -79,6 +80,7 @@ beforeEach(() => {
   api.signOut.mockReset().mockResolvedValue(undefined);
   api.sendChat.mockReset();
   useChatStore.setState({ turns: [], pending: false, lastReply: null, error: null });
+  useGhostStore.setState({ ghosts: [] });
 });
 
 afterEach(cleanup);
@@ -541,7 +543,16 @@ describe('profile, theme and chat', () => {
     fireEvent.change(input, { target: { value: 'Add a note for standup' } });
     fireEvent.submit(input.closest('form')!);
 
-    expect((await screen.findByRole('status')).textContent).toContain('Added a note in a Today group.');
+    // outlines are drawn at the final rectangles before anything appears
+    const ghosts = await screen.findAllByTestId('ghost');
+    expect(ghosts).toHaveLength(2);
+    expect(ghosts[0]!.getAttribute('class')).toContain('ghost--group');
+    expect(ghosts[0]!.style.width).toBe('500px');
+    expect(ghosts[1]!.style.width).toBe('240px');
+    expect(screen.queryByRole('region', { name: 'Sticky note' })).toBeNull();
+
+    expect((await screen.findByRole('status', {}, { timeout: 3000 })).textContent).toContain('Added a note in a Today group.');
+    expect(screen.queryByTestId('ghost')).toBeNull();
     expect(screen.getByRole('region', { name: 'Group Today' })).toBeTruthy();
     const panel = screen.getByRole('region', { name: 'Sticky note' });
     expect(shadowOf(panel).querySelector('textarea')!.value).toBe('Standup 9:30');
@@ -554,6 +565,20 @@ describe('profile, theme and chat', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss reply' }));
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('offers to build the homepage from ThoughtSpot activity when the user came from a cluster', async () => {
+    await renderSignedIn();
+    api.sendChat.mockResolvedValue({ reply: 'Built from your activity.', changed: false, actions: [] });
+    fireEvent.click(screen.getByRole('button', { name: 'Build from my ThoughtSpot activity' }));
+    expect((await screen.findByRole('status')).textContent).toContain('Built from your activity.');
+    expect((api.sendChat.mock.calls[0] as [string])[0]).toMatch(/last 3 months/);
+  });
+
+  it('hides the activity offer for users without a cluster', async () => {
+    api.fetchMe.mockResolvedValue({ ...user, cluster: null });
+    await renderSignedIn();
+    expect(screen.queryByRole('button', { name: /ThoughtSpot activity/ })).toBeNull();
   });
 
   it('shows chat errors in the bubble and keeps the page as it was', async () => {

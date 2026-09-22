@@ -12,3 +12,4 @@ backend/data/
 # Match it anywhere so a stray copy can never be committed.
 **/public/valkyrie/
 valkyrie/
+package-lock.json

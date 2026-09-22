@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { ApiError, sendChat, type ChatCataloguePlugin, type ChatTurn } from './api';
-import { applyLayoutDocument } from './persistence';
+import { ghostDuration, newRects, reducedMotion, useGhostStore } from './ghosts';
+import { applyLayoutDocument, parseLayoutDocument } from './persistence';
 import { usePluginRegistry } from './registry';
 import { useToastStore } from './toasts';
 
@@ -27,6 +28,25 @@ export function catalogue(): ChatCataloguePlugin[] {
   }));
 }
 
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+// New panels and groups get an animated outline at their final size before they appear.
+async function revealThenApply(layout: unknown): Promise<void> {
+  const doc = parseLayoutDocument(typeof layout === 'string' ? layout : JSON.stringify(layout));
+  if (!doc) {
+    useToastStore.getState().push('Spotter changed the page but it could not be reloaded.', 'error', 'spotter');
+    return;
+  }
+  const ghosts = reducedMotion() ? [] : newRects(doc);
+  if (ghosts.length > 0) {
+    useGhostStore.getState().show(ghosts);
+    await sleep(ghostDuration(ghosts.length));
+  }
+  const applied = await applyLayoutDocument(doc);
+  useGhostStore.getState().clear();
+  if (!applied) useToastStore.getState().push('Spotter changed the page but it could not be reloaded.', 'error', 'spotter');
+}
+
 export const useChatStore = create<ChatState>()((set, get) => ({
   turns: [],
   pending: false,
@@ -41,8 +61,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     try {
       const result = await sendChat(text, turns.slice(0, -1), catalogue());
       if (result.changed && result.layout !== undefined) {
-        const applied = await applyLayoutDocument(result.layout);
-        if (!applied) useToastStore.getState().push('Spotter changed the page but it could not be reloaded.', 'error', 'spotter');
+        await revealThenApply(result.layout);
       }
       set({
         turns: [...turns, { role: 'assistant' as const, content: result.reply }].slice(-MAX_TURNS),

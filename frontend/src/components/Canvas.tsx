@@ -2,6 +2,9 @@ import type { MouseEvent } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useMenuStore } from '../core/menu';
 import { selectOrderedGroups, selectOrderedPanels, useCanvasStore } from '../core/store';
+import { useChatStore } from '../core/chat';
+import { useSession } from '../core/session';
+import { Ghosts } from './Ghosts';
 import { Group } from './Group';
 import { Panel } from './Panel';
 
@@ -9,6 +12,10 @@ export function Canvas() {
   const panels = useCanvasStore(useShallow(selectOrderedPanels));
   const groups = useCanvasStore(useShallow(selectOrderedGroups));
   const openMenu = useMenuStore((s) => s.openMenu);
+  const cluster = useSession((s) => s.user?.cluster ?? null);
+  const chatPending = useChatStore((s) => s.pending);
+  const buildFromActivity = () =>
+    void useChatStore.getState().send('Build my homepage from what I used most on ThoughtSpot in the last 3 months.');
 
   const onContextMenu = (e: MouseEvent) => {
     e.preventDefault();
@@ -35,6 +42,11 @@ export function Canvas() {
             <button type="button" className="tb-btn tb-btn--primary canvas__empty-cta" onClick={openAddMenu}>
               Add a panel
             </button>
+            {cluster && (
+              <button type="button" className="tb-btn canvas__empty-cta" disabled={chatPending} onClick={buildFromActivity}>
+                {chatPending ? 'Spotter is building…' : 'Build from my ThoughtSpot activity'}
+              </button>
+            )}
           </div>
           <p className="canvas__empty-hint">or right-click anywhere on the canvas</p>
         </div>
@@ -45,6 +57,7 @@ export function Canvas() {
       {panels.map((panel) => (
         <Panel key={panel.iid} panel={panel} />
       ))}
+      <Ghosts />
     </main>
   );
 }

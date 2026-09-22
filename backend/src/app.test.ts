@@ -70,7 +70,7 @@ const stop = (running: Running) => new Promise<void>((resolve) => running.server
 
 const gatewayScript: Array<(body: { messages: unknown[] }) => unknown> = [];
 const fakeGateway = async (_url: string, init?: RequestInit): Promise<Response> => {
-  const body = JSON.parse(String(init?.body)) as { messages: unknown[] };
+  const body = JSON.parse(String(init?.body)) as { messages: unknown[]; tools?: unknown[] };
   const next = gatewayScript.shift();
   if (!next) return new Response(JSON.stringify({ choices: [{ message: { content: 'Nothing to do.' } }] }), { status: 200 });
   const out = next(body);
@@ -78,6 +78,12 @@ const fakeGateway = async (_url: string, init?: RequestInit): Promise<Response> 
 };
 
 const fakeCluster = async (url: string, init?: RequestInit): Promise<Response> => {
+  if (url.includes('/callosum/v1/metadata/list/withstats')) {
+    return new Response(
+      JSON.stringify({ objects: [{ header: { id: 'lb-9', name: 'Ops board' }, type: 'PINBOARD_ANSWER_BOOK', stats: { lastAccessed: Date.now() } }], isLastBatch: true }),
+      { status: 200 }
+    );
+  }
   if (url.endsWith('/auth/token/full')) {
     const body = JSON.parse(String(init?.body)) as { username: string; password: string };
     return body.password === 'right' ? new Response(JSON.stringify({ token: 'cluster-token' }), { status: 200 }) : new Response('{}', { status: 401 });
@@ -388,6 +394,31 @@ describe('chat', () => {
 
     const saved = await (await api('/api/layout', {}, alice)).json();
     expect(saved).toEqual(out.layout);
+  });
+
+  it('gives the agent cluster tools when the session came from a cluster sign-in', async () => {
+    const res = await api('/api/session', {
+      method: 'POST',
+      headers: { ...json, ...csrf },
+      body: JSON.stringify({ clusterUrl: 'my.thoughtspot.cloud', username: 'jdoe', password: 'right' })
+    });
+    const cookie = (res.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    gatewayScript.push(
+      (body) => {
+        const tools = (body as unknown as { tools: Array<{ function: { name: string } }> }).tools.map((t) => t.function.name);
+        expect(tools).toContain('list_recent_activity');
+        return {
+          choices: [{ message: { content: null, tool_calls: [{ id: 'r', type: 'function', function: { name: 'list_recent_activity', arguments: '{}' } }] } }]
+        };
+      },
+      (body) => {
+        const last = body.messages.at(-1) as { content: string };
+        expect(JSON.parse(last.content).objects[0]).toMatchObject({ id: 'lb-9', name: 'Ops board' });
+        return { choices: [{ message: { content: 'You use Ops board most.' } }] };
+      }
+    );
+    const out = await chat(cookie, { message: 'what do I use?' });
+    expect(await out.json()).toEqual({ reply: 'You use Ops board most.', changed: false, actions: [] });
   });
 
   it('answers without changes when the model only talks, and validates the body', async () => {
