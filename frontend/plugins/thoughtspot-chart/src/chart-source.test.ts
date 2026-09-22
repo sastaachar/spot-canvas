@@ -4,6 +4,7 @@ import {
   bundleFolder,
   editUrl,
   fetchDiscoveredTsHost,
+  listAnswers,
   parsePayload,
   projectRows,
   resolveTsHost,
@@ -73,6 +74,32 @@ describe('chart-source', () => {
     expect(await fetchDiscoveredTsHost(missing, endpoint)).toBe('');
     const failing = async () => { throw new Error('offline'); };
     expect(await fetchDiscoveredTsHost(failing, endpoint)).toBe('');
+  });
+
+  it('lists saved answers as id/name and posts an ANSWER search', async () => {
+    let captured: { url: string; body: unknown } | null = null;
+    const fetch = async (url: URL, init?: RequestInit) => {
+      captured = { url: url.toString(), body: JSON.parse(String(init?.body)) };
+      return new Response(
+        JSON.stringify([
+          { metadata_id: 'id-1', metadata_name: '  Revenue by region  ', metadata_type: 'ANSWER' },
+          { metadata_id: 'id-2', metadata_name: '', metadata_type: 'ANSWER' },
+          { metadata_name: 'no id — skipped', metadata_type: 'ANSWER' }
+        ])
+      );
+    };
+    const answers = await listAnswers(fetch, new URL('http://localhost:5173/ts-rest/'));
+    expect(answers).toEqual([
+      { id: 'id-1', name: 'Revenue by region' },
+      { id: 'id-2', name: 'id-2' } // blank name falls back to the id
+    ]);
+    expect(captured!.url).toBe('http://localhost:5173/ts-rest/metadata/search');
+    expect(captured!.body).toMatchObject({ metadata: [{ type: 'ANSWER' }] });
+  });
+
+  it('surfaces a failed answer listing', async () => {
+    const fetch = async () => new Response('nope', { status: 403 });
+    await expect(listAnswers(fetch, new URL('http://localhost:5173/ts-rest/'))).rejects.toThrow('403');
   });
 
   it('maps chart types to bundle folders and projects rows onto a query', () => {

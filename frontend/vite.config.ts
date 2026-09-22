@@ -3,6 +3,7 @@ import https from 'node:https';
 import path from 'node:path';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vitest/config';
+import type { ProxyOptions } from 'vite';
 
 // Dev-only proxy for the ThoughtSpot chart plugin: `/prism` -> a locally running prism
 // (PRISM_URL), authenticated with a cluster bearer token minted from trusted-auth
@@ -11,6 +12,9 @@ import { defineConfig, type Plugin } from 'vitest/config';
 const DEV_VARS = process.env.TS_DEV_VARS ?? path.resolve(import.meta.dirname, '../../viz-embed/.dev.vars');
 const PRISM_URL = process.env.PRISM_URL ?? 'http://localhost:4124';
 const TOKEN_TTL_MS = 50 * 60 * 1000;
+// The cluster the .dev.vars credentials belong to; used to proxy REST calls
+// (e.g. metadata/search for the answer picker) with the same minted token.
+const TS_HOST = readDevVars().TS_HOST ?? '';
 
 function readDevVars(): Record<string, string> {
   const out: Record<string, string> = {};
@@ -78,7 +82,7 @@ function thoughtspotTokenPlugin(): Plugin {
           res.end(JSON.stringify({ tsHost: vars.TS_HOST ?? '' }));
           return;
         }
-        if (req.url?.startsWith('/prism')) {
+        if (req.url?.startsWith('/prism') || req.url?.startsWith('/ts-rest')) {
           try {
             (req as { tsToken?: string }).tsToken = await getToken();
           } catch (error) {
@@ -90,6 +94,23 @@ function thoughtspotTokenPlugin(): Plugin {
     }
   };
 }
+
+const tsRestProxy: Record<string, ProxyOptions> = TS_HOST
+  ? {
+      '/ts-rest': {
+        target: TS_HOST,
+        changeOrigin: true,
+        secure: false, // the cluster serves a self-signed cert
+        rewrite: (p) => p.replace(/^\/ts-rest/, '/api/rest/2.0'),
+        configure(proxy) {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            const token = (req as { tsToken?: string }).tsToken;
+            if (token) proxyReq.setHeader('Authorization', `Bearer ${token}`);
+          });
+        }
+      }
+    }
+  : {};
 
 export default defineConfig({
   plugins: [react(), thoughtspotTokenPlugin()],
@@ -108,7 +129,9 @@ export default defineConfig({
             if (token) proxyReq.setHeader('Authorization', `Bearer ${token}`);
           });
         }
-      }
+      },
+      // Cluster REST 2.0 (e.g. /ts-rest/metadata/search) with the minted token attached.
+      ...tsRestProxy
     }
   },
   test: {

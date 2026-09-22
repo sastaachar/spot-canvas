@@ -121,6 +121,37 @@ export function editUrl(tsHost: string, answerId: string): string | null {
   }
 }
 
+/** A saved Answer the user can pick from the dropdown. */
+export interface AnswerRef {
+  id: string;
+  name: string;
+}
+
+/**
+ * Lists saved Answers (id + name) via the cluster's REST `metadata/search`.
+ * `base` is a directory URL (trailing slash) such as `/ts-rest/` in dev.
+ */
+export async function listAnswers(
+  fetch: (url: URL, init?: RequestInit) => Promise<Response>,
+  base: URL,
+  limit = 200
+): Promise<AnswerRef[]> {
+  const res = await fetch(new URL('metadata/search', base), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      metadata: [{ type: 'ANSWER' }],
+      record_size: limit,
+      sort_options: { field_name: 'MODIFIED', order: 'DESC' }
+    })
+  });
+  if (!res.ok) throw new Error(`Could not list answers (${res.status})`);
+  const rows = (await res.json()) as Array<{ metadata_id?: string; metadata_name?: string }>;
+  return (Array.isArray(rows) ? rows : [])
+    .filter((r) => r.metadata_id)
+    .map((r) => ({ id: String(r.metadata_id), name: r.metadata_name?.trim() || String(r.metadata_id) }));
+}
+
 /** Projects the rows onto the column ids of one chart query. */
 export function projectRows(source: ChartSource, columnIds: string[]): QueryData {
   return {
