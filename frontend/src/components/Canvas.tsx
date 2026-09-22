@@ -15,14 +15,28 @@ export function Canvas() {
     openMenu({ kind: 'canvas' }, e.clientX, e.clientY);
   };
 
+  const openAddMenu = (e: MouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    openMenu({ kind: 'canvas' }, rect.left, rect.bottom + 8);
+  };
+
   const members = (gid: string) => panels.filter((p) => p.groupId === gid).length;
 
   return (
     <main className="canvas" id="canvas" onContextMenu={onContextMenu}>
       {panels.length === 0 && groups.length === 0 && (
         <div className="canvas__empty">
+          <div className="canvas__empty-badge" aria-hidden="true">
+            ＋
+          </div>
           <h1>Your homepage is empty</h1>
-          <p>Right-click anywhere to add a note, a workflow, a data embed or links. Group related panels with a rectangle.</p>
+          <p>Add panels — notes, workflows, ThoughtSpot charts, links — and arrange them your way.</p>
+          <div className="canvas__empty-actions">
+            <button type="button" className="tb-btn tb-btn--primary canvas__empty-cta" onClick={openAddMenu}>
+              Add a panel
+            </button>
+          </div>
+          <p className="canvas__empty-hint">or right-click anywhere on the canvas</p>
         </div>
       )}
       {groups.map((group) => (

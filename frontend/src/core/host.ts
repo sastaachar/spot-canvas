@@ -3,6 +3,7 @@ import type {
   HostKind,
   NotifyKind,
   PluginApi,
+  PluginCommand,
   PluginManifest,
   PluginPermission,
   SuiteSettings,
@@ -59,6 +60,8 @@ export interface HostDeps {
   resize(iid: string, w: number, h: number): void;
   close(iid: string): void;
   setTitle(iid: string, title: string | null): void;
+  setCommands(iid: string, commands: PluginCommand[]): void;
+  openMenu(iid: string, x: number, y: number): void;
   notify(message: string, kind: NotifyKind, from: string): void;
   theme(): ThemeName;
   onThemeChange(handler: (theme: ThemeName) => void): () => void;
@@ -156,6 +159,12 @@ export function createPluginApi(iid: string, manifest: PluginManifest, deps: Hos
       },
       setTitle(title) {
         deps.setTitle(iid, title === null ? null : title.trim().slice(0, MAX_TITLE) || null);
+      },
+      setCommands(commands) {
+        deps.setCommands(iid, Array.isArray(commands) ? commands : []);
+      },
+      openMenu(x, y) {
+        deps.openMenu(iid, x, y);
       },
       notify(message, kind = 'info') {
         deps.notify(message, kind, iid);

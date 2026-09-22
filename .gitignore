@@ -8,5 +8,7 @@ coverage/
 .env.*
 !.env.example
 backend/data/
-# built ThoughtSpot chart bundle (20 MB); see frontend/plugins/thoughtspot-chart/README.md
-frontend/public/valkyrie/
+# built ThoughtSpot chart bundle (~20 MB); see frontend/plugins/thoughtspot-chart/README.md.
+# Match it anywhere so a stray copy can never be committed.
+**/public/valkyrie/
+valkyrie/
