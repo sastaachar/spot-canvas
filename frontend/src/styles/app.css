@@ -67,7 +67,6 @@
     --group-green: #56d3a8;
     --group-violet: #b094f8;
     --group-slate: #a5acb9;
-    --tint-ink: #1d232f;
   }
 }
 
@@ -96,7 +95,6 @@
   --group-green: #56d3a8;
   --group-violet: #b094f8;
   --group-slate: #a5acb9;
-  --tint-ink: #1d232f;
 }
 
 * {
@@ -228,22 +226,21 @@ h3 {
   opacity: 0.7;
 }
 
-/* ---------- groups ---------- */
+/* ---------- groups: a ThoughtSpot-style section card ---------- */
 
 .group {
   --tint: var(--group-blue);
-  --tint-ink: #ffffff;
   position: absolute;
-  border: 1.5px solid color-mix(in srgb, var(--tint) 55%, transparent);
-  background: color-mix(in srgb, var(--tint) 7%, transparent);
-  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
   transition:
     left var(--t-med) var(--ease),
     top var(--t-med) var(--ease),
     width var(--t-med) var(--ease),
     height var(--t-med) var(--ease),
-    border-color var(--t-med) var(--ease),
-    background-color var(--t-med) var(--ease);
+    border-color var(--t-med) var(--ease);
   animation: rise-in var(--t-slow) var(--ease-out) both;
 }
 
@@ -265,20 +262,27 @@ h3 {
 
 .group__head {
   position: absolute;
-  top: -1px;
-  left: -1px;
+  top: 0;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 28px;
-  padding: 0 12px;
-  border-radius: 11px 0 10px 0;
-  background: var(--tint);
-  color: var(--tint-ink, #ffffff);
+  gap: 8px;
+  height: 34px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
   cursor: grab;
   user-select: none;
   touch-action: none;
-  max-width: calc(100% + 2px);
+}
+
+.group__head::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tint);
+  flex: none;
 }
 
 .group__head:active {
@@ -287,43 +291,57 @@ h3 {
 
 .group__title {
   font-family: var(--display);
-  font-size: 12.5px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 
 .group__count {
   font-family: var(--mono);
   font-size: 10.5px;
-  opacity: 0.85;
+  color: var(--muted);
   white-space: nowrap;
 }
 
 .group__rename {
-  height: 20px;
-  width: 200px;
-  border: 0;
-  border-radius: 3px;
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
   padding: 0 6px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--surface);
   color: var(--ink);
-  font-size: 12.5px;
+  font-family: var(--display);
+  font-size: 13px;
 }
 
 .group__grip {
   position: absolute;
   right: 0;
   bottom: 0;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   cursor: nwse-resize;
   touch-action: none;
-  border-right: 2px solid var(--tint);
-  border-bottom: 2px solid var(--tint);
-  border-radius: 0 0 11px 0;
-  opacity: 0.7;
+  background: linear-gradient(135deg, transparent 50%, var(--border-strong) 50%);
+  border-radius: 0 0 var(--radius) 0;
+}
+
+/* Widgets inside a section sit flat on it: a hairline instead of a shadow ring. */
+.panel.is-grouped {
+  box-shadow: none;
+  border: 1px solid var(--border);
+}
+
+.panel.is-grouped.is-selected {
+  border-color: var(--accent-fill);
+  box-shadow: 0 0 0 1px var(--accent-fill);
 }
 
 /* ---------- panels ---------- */
@@ -379,10 +397,6 @@ h3 {
   background: var(--surface);
   font-family: var(--display);
   font-size: 12.5px;
-}
-
-.panel.is-grouped {
-  box-shadow: var(--shadow-soft);
 }
 
 .panel__head {
