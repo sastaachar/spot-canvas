@@ -1,10 +1,12 @@
 import type { MouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { rectStyle } from '../core/grid';
 import { useMenuStore } from '../core/menu';
 import { selectOrderedGroups, selectOrderedPanels, useCanvasStore } from '../core/store';
 import { useChatStore } from '../core/chat';
 import { useSession } from '../core/session';
 import { useUiStore } from '../core/ui';
+import { ErrorBoundary } from './ErrorBoundary';
 import { Ghosts } from './Ghosts';
 import { Group } from './Group';
 import { Panel } from './Panel';
@@ -27,8 +29,6 @@ export function Canvas() {
     const rect = e.currentTarget.getBoundingClientRect();
     openMenu({ kind: 'canvas' }, rect.left, rect.bottom + 8);
   };
-
-  const members = (gid: string) => panels.filter((p) => p.groupId === gid).length;
 
   const onPointerDown = (e: ReactPointerEvent) => {
     if (e.target === e.currentTarget || (e.target as HTMLElement).closest('.canvas__empty')) useUiStore.getState().select(null);
@@ -57,10 +57,23 @@ export function Canvas() {
         </div>
       )}
       {groups.map((group) => (
-        <Group key={group.gid} group={group} members={members(group.gid)} />
+        <ErrorBoundary key={group.gid} resetKey={group.gid} label={`group ${group.gid}`} fallback={null}>
+          <Group group={group} />
+        </ErrorBoundary>
       ))}
-      {panels.map((panel) => (
-        <Panel key={panel.iid} panel={panel} />
+      {panels.map((panel, i) => (
+        <ErrorBoundary
+          key={panel.iid}
+          resetKey={panel.pluginId}
+          label={`panel ${panel.iid}`}
+          fallback={
+            <section className="panel panel--broken" style={{ ...rectStyle(panel), zIndex: panel.z }} aria-label="Widget error">
+              This widget hit an error.
+            </section>
+          }
+        >
+          <Panel panel={panel} depth={i + 1} depthTotal={panels.length} />
+        </ErrorBoundary>
       ))}
       <Ghosts />
     </main>

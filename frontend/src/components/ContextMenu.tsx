@@ -143,7 +143,7 @@ export function ContextMenu() {
   }
 
   function panelEntries(t: Extract<MenuTarget, { kind: 'panel' }>): Entry[] {
-    const { removePanel, focusPanel, assignPanel } = useCanvasStore.getState();
+    const { removePanel, focusPanel, assignPanel, raisePanel, lowerPanel } = useCanvasStore.getState();
     const plugin = panel ? getPlugin(panel.pluginId) : undefined;
     const suite = panel ? suiteForPlugin(panel.pluginId) : undefined;
     const name = panel?.title ?? plugin?.manifest.name ?? t.iid;
@@ -170,6 +170,8 @@ export function ContextMenu() {
       { kind: 'action', label: 'Move', icon: '✥', hint: 'drag, then it locks', onSelect: () => useUiStore.getState().setMoving(t.iid) },
       ...(commandEntries.length > 0 ? [...commandEntries] : []),
       'separator',
+      { kind: 'action', label: 'Bring forward', icon: '▴', onSelect: () => raisePanel(t.iid) },
+      { kind: 'action', label: 'Send backward', icon: '▾', onSelect: () => lowerPanel(t.iid) },
       { kind: 'action', label: 'Bring to front', icon: '⤒', onSelect: () => focusPanel(t.iid) },
       ...(Object.keys(groups).length > 0 ? [{ kind: 'submenu', label: 'Group', icon: '▧', items: groupItems } as Submenu] : []),
       ...(suite && hasSetup(suite) ? [setupEntry(suite)] : []),

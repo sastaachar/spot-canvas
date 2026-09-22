@@ -63,6 +63,8 @@ interface CanvasState {
   movePanel(iid: string, x: number, y: number): void;
   resizePanel(iid: string, w: number, h: number): void;
   focusPanel(iid: string): void;
+  raisePanel(iid: string): void;
+  lowerPanel(iid: string): void;
   setPanelData(iid: string, data: unknown): void;
   setPanelTitle(iid: string, title: string | null): void;
   clearPanels(): void;
@@ -173,8 +175,10 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
   movePanel(iid, x, y) {
     const panel = get().panels[iid];
     if (!panel) return;
-    const nx = clampInt(x, 0, GRID.cols - panel.w);
-    const ny = clampInt(y, 0, GRID.rows - panel.h);
+    // Keep fractional coords while dragging so the motion is smooth (settlePanel snaps
+    // to the grid on drop); rounding here made the widget jump sector-to-sector.
+    const nx = Math.min(GRID.cols - panel.w, Math.max(0, x));
+    const ny = Math.min(GRID.rows - panel.h, Math.max(0, y));
     if (nx === panel.x && ny === panel.y) return;
     set({ panels: { ...get().panels, [iid]: { ...panel, x: nx, y: ny } } });
   },
@@ -194,6 +198,28 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
     const panel = panels[iid];
     if (!panel || panel.z === nextZ - 1) return;
     set({ panels: { ...panels, [iid]: { ...panel, z: nextZ } }, nextZ: nextZ + 1 });
+  },
+
+  // Move one step up/down the depth stack by swapping z with the adjacent panel.
+  raisePanel(iid) {
+    const { panels } = get();
+    const panel = panels[iid];
+    if (!panel) return;
+    const above = Object.values(panels)
+      .filter((p) => p.z > panel.z)
+      .sort((a, b) => a.z - b.z)[0];
+    if (!above) return;
+    set({ panels: { ...panels, [iid]: { ...panel, z: above.z }, [above.iid]: { ...above, z: panel.z } } });
+  },
+  lowerPanel(iid) {
+    const { panels } = get();
+    const panel = panels[iid];
+    if (!panel) return;
+    const below = Object.values(panels)
+      .filter((p) => p.z < panel.z)
+      .sort((a, b) => b.z - a.z)[0];
+    if (!below) return;
+    set({ panels: { ...panels, [iid]: { ...panel, z: below.z }, [below.iid]: { ...below, z: panel.z } } });
   },
 
   setPanelData(iid, data) {
@@ -301,8 +327,14 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
   settlePanel(iid) {
     const panel = get().panels[iid];
     if (!panel) return;
-    const cx = panel.x + panel.w / 2;
-    const cy = panel.y + panel.h / 2;
+    // Snap the fractional drag position to the nearest grid sector on drop.
+    const x = clampInt(panel.x, 0, GRID.cols - panel.w);
+    const y = clampInt(panel.y, 0, GRID.rows - panel.h);
+    if (x !== panel.x || y !== panel.y) {
+      set({ panels: { ...get().panels, [iid]: { ...panel, x, y } } });
+    }
+    const cx = x + panel.w / 2;
+    const cy = y + panel.h / 2;
     const home = Object.values(get().groups).find((g) => cx >= g.x && cx <= g.x + g.w && cy >= g.y && cy <= g.y + g.h);
     get().assignPanel(iid, home?.gid ?? null);
   },

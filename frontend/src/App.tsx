@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Canvas } from './components/Canvas';
 import { ChatBar } from './components/ChatBar';
 import { ContextMenu } from './components/ContextMenu';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { PluginDrawer } from './components/PluginDrawer';
-import { ProfileButton, ProfileSheet } from './components/ProfileSheet';
+import { EditModeButton, ProfileButton, ProfileSheet } from './components/ProfileSheet';
 import { SignIn } from './components/SignIn';
 import { SuiteSetup } from './components/SuiteSetup';
 import { Toasts } from './components/Toasts';
@@ -69,8 +70,11 @@ export function App() {
     <div className="app">
       <PluginDrawer />
       <Canvas />
+      <EditModeButton />
       <ProfileButton />
-      <ChatBar />
+      <ErrorBoundary label="chat" fallback={null}>
+        <ChatBar />
+      </ErrorBoundary>
       <ContextMenu />
       <SuiteSetup />
       <ProfileSheet />

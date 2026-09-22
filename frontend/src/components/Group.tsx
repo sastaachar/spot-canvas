@@ -6,12 +6,11 @@ import { useUiStore } from '../core/ui';
 
 interface Props {
   group: GroupState;
-  members: number;
 }
 
 type DragMode = 'move' | 'resize';
 
-export function Group({ group, members }: Props) {
+export function Group({ group }: Props) {
   const renaming = useUiStore((s) => s.renamingGid === group.gid);
   const setRenaming = useUiStore((s) => s.setRenaming);
   const { moveGroup, resizeGroup, renameGroup } = useCanvasStore.getState();
@@ -85,10 +84,7 @@ export function Group({ group, members }: Props) {
             }}
           />
         ) : (
-          <>
-            <span className="group__title">{group.title}</span>
-            <span className="group__count">{members === 1 ? '1 panel' : `${members} panels`}</span>
-          </>
+          <span className="group__title">{group.title}</span>
         )}
       </header>
       <div className="group__grip" aria-hidden="true" onPointerDown={startDrag('resize')} />

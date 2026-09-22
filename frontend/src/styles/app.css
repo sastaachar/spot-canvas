@@ -162,6 +162,10 @@ h3 {
 .canvas {
   flex: 1;
   position: relative;
+  /* Own stacking context: panel z-indexes (unbounded via nextZ) stay contained
+     here and can never paint over the chrome (context menu, chat) that sit
+     above the canvas at the app level. */
+  isolation: isolate;
   overflow: hidden;
   min-width: 0;
   background-color: var(--bg);
@@ -276,15 +280,6 @@ h3 {
   touch-action: none;
 }
 
-.group__head::before {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--tint);
-  flex: none;
-}
-
 .group__head:active {
   cursor: grabbing;
 }
@@ -301,12 +296,6 @@ h3 {
   min-width: 0;
 }
 
-.group__count {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--muted);
-  white-space: nowrap;
-}
 
 .group__rename {
   flex: 1;
@@ -418,6 +407,16 @@ h3 {
   outline-offset: 4px;
 }
 
+/* Edit mode: a faint dashed outline marks every widget as draggable. */
+.panel.is-editing:not(.is-moving) {
+  outline: 1px dashed var(--border-strong);
+  outline-offset: 3px;
+}
+
+.panel.is-editing:not(.is-moving):hover {
+  outline-color: var(--accent-fill);
+}
+
 .panel.is-moving .panel__head {
   cursor: grab;
 }
@@ -437,6 +436,61 @@ h3 {
 
 .panel__mover:active {
   cursor: grabbing;
+}
+
+/* Depth badge: shows the widget's stacking index and moves it up/down the depth stack. */
+.panel__depth {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  height: 20px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-soft);
+  opacity: 0.85;
+  transition: opacity 0.12s ease;
+  user-select: none;
+}
+
+.panel:hover .panel__depth,
+.panel.is-selected .panel__depth,
+.panel.is-moving .panel__depth {
+  opacity: 1;
+}
+
+.panel__depth-num {
+  min-width: 14px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.panel__depth-btn {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.panel__depth-btn:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.panel__depth-btn:disabled {
+  opacity: 0.3;
 }
 
 .panel__name {
@@ -460,6 +514,37 @@ h3 {
   padding: 12px;
   color: var(--muted);
   font-size: 13px;
+}
+
+/* Fallback tile shown by the error boundary when a widget fails to render. */
+.panel--broken {
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  border: 1px dashed var(--border-strong);
+}
+
+/* Last-resort screen when the whole app throws (top-level boundary). */
+.app-crash {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.app-crash p {
+  margin: 0;
+  max-width: 420px;
+  color: var(--muted);
 }
 
 .panel__grip {
@@ -496,6 +581,37 @@ h3 {
 
 .avatar {
   transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+
+/* Edit-mode pencil, left of the avatar; turns blue while editing. */
+.editbtn {
+  position: absolute;
+  top: 14px;
+  right: 62px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  line-height: 1;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
+  box-shadow: var(--shadow-soft);
+  z-index: 25;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.editbtn:hover {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+
+.editbtn.is-active {
+  background: var(--accent-fill);
+  border-color: transparent;
+  color: var(--accent-ink);
 }
 
 .avatar:hover {
@@ -776,8 +892,13 @@ h3 {
 }
 
 .chat.is-expanded .chatbar {
-  height: 40vh;
-  min-height: 260px;
+  /* Grow with the conversation, not to a fixed slab: an empty/short chat stays
+     small, a long one grows upward and the transcript scrolls once it reaches the
+     cap — so the box never dominates the screen or pushes the input off the bottom. */
+  height: auto;
+  /* --chat-max (set when floating) is the room above the pinned bar, so the
+     upward growth can never clip past the top of the screen. */
+  max-height: min(56vh, calc(100vh - 120px), var(--chat-max, 100vh));
   border-radius: 18px;
 }
 
@@ -794,7 +915,10 @@ h3 {
 
 .chat__log {
   display: none;
-  flex: 1;
+  /* basis auto (not 0) so the log sizes to its content: empty = just the hint,
+     not a stretched empty band; it grows with the conversation up to the
+     chatbar's max-height, then scrolls. */
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   padding: 14px 14px 6px;
@@ -827,11 +951,11 @@ h3 {
 }
 
 .chat__hint {
-  margin: auto 0;
+  margin: 0;
   color: var(--muted);
   font-size: 13.5px;
   text-align: center;
-  padding: 0 24px;
+  padding: 2px 24px 8px;
 }
 
 .chat__turn {
@@ -912,60 +1036,78 @@ h3 {
   flex: none;
   margin-top: auto;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 10px;
-  height: 44px;
-  padding: 0 6px 0 14px;
+  min-height: 44px;
+  padding: 5px 6px 5px 14px;
 }
 
 .chat.is-expanded .chatbar__row {
   border-top: 1px solid var(--border);
 }
 
-.chatbar__mark {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-fill), var(--accent-2));
+/* Neutral drag grip — no coloured dot. Hidden until the chat is hovered, so the
+   bar stays clean, then it fades in as a subtle move affordance. */
+.chatbar__drag {
   flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  /* Match the buttons' height so the grip glyph lines up on the row's centre
+     instead of sinking to the bottom under the row's flex-end alignment. */
+  height: 34px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: grab;
+  /* Let pointer drag win over the browser's touch scroll/gestures. */
+  touch-action: none;
+  user-select: none;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease);
 }
 
-.chatbar.is-pending .chatbar__mark {
-  animation: chat-pulse 1s ease-in-out infinite;
+.chat:hover .chatbar__drag,
+.chatbar__drag:focus-visible {
+  opacity: 0.5;
 }
 
-@keyframes chat-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.5);
-    opacity: 0.55;
-  }
+.chatbar__drag:hover {
+  opacity: 0.85;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .chatbar.is-pending .chatbar__mark {
-    animation: none;
-  }
+.chatbar__drag:active {
+  cursor: grabbing;
 }
 
-.chatbar__row input {
+/* Once dragged, the bar is pinned by JS (position: fixed); drop the centring
+   transform so it doesn't fight the explicit coordinates. */
+.chat.is-floating {
+  transform: none;
+}
+
+
+.chatbar__row textarea {
   flex: 1;
   min-width: 0;
   border: 0;
   background: none;
-  height: 100%;
+  font-family: inherit;
   font-size: 14px;
+  line-height: 1.45;
+  padding: 6px 0;
+  resize: none;
+  /* Height is set by JS to fit the content; it grows to this cap then scrolls. */
+  max-height: 140px;
+  overflow-y: auto;
 }
 
-.chatbar__row input:focus-visible {
+.chatbar__row textarea:focus-visible {
   outline: none;
 }
 
-.chatbar__row input::placeholder {
+.chatbar__row textarea::placeholder {
   color: var(--muted);
 }
 

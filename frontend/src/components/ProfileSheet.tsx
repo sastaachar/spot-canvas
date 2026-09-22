@@ -19,6 +19,25 @@ export function initials(name: string): string {
   return letters.toUpperCase();
 }
 
+export function EditModeButton() {
+  const user = useSession((s) => s.user);
+  const editMode = useUiStore((s) => s.editMode);
+  const toggle = useUiStore((s) => s.toggleEditMode);
+  if (!user) return null;
+  return (
+    <button
+      type="button"
+      className={`editbtn${editMode ? ' is-active' : ''}`}
+      aria-pressed={editMode}
+      aria-label="Edit layout"
+      title={editMode ? 'Done editing' : 'Edit layout'}
+      onClick={() => toggle()}
+    >
+      ✎
+    </button>
+  );
+}
+
 export function ProfileButton() {
   const user = useSession((s) => s.user);
   const open = useUiStore((s) => s.profileOpen);

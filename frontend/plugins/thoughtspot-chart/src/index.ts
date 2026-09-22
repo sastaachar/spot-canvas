@@ -7,10 +7,12 @@ import {
   bundleFolder,
   editUrl,
   fetchDiscoveredTsHost,
+  listAnswers,
   parsePayload,
   projectRows,
   resolveTsHost,
   toChartSource,
+  type AnswerRef,
   type ChartSource
 } from './chart-source';
 
@@ -29,9 +31,11 @@ interface State {
   bundleBase: string;
   /** ThoughtSpot URL for "Edit in ThoughtSpot"; derived from a cluster endpoint when empty. */
   tsHost: string;
+  /** cluster REST base (trailing slash) for the answer picker; `/ts-rest/` is the dev proxy. */
+  listBase: string;
 }
 
-const DEFAULTS: State = { answerId: '', endpoint: '/prism', bundleBase: '/valkyrie/', tsHost: '' };
+const DEFAULTS: State = { answerId: '', endpoint: '/prism', bundleBase: '/valkyrie/', tsHost: '', listBase: '/ts-rest/' };
 
 /** Chart features the bundle reads from its own URL. */
 const CHART_FLAGS = [
@@ -59,6 +63,23 @@ const CSS = `
 .ts-chart__form { width: min(440px, 100%); display: grid; gap: 8px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; padding: 14px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18); }
 .ts-chart__form label { font-size: 11px; font-weight: 600; color: var(--muted); }
 .ts-chart__form input { height: 30px; border: 1px solid var(--border); border-radius: 6px; padding: 0 9px; background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 11.5px; }
+.ts-chart__picker { position: relative; }
+.ts-chart__picker[hidden] { display: none; }
+.ts-chart__picker-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; height: 34px; border: 1px solid var(--border); border-radius: 6px; padding: 0 10px; background: var(--bg); color: var(--ink); font-size: 12.5px; text-align: left; cursor: pointer; }
+.ts-chart__picker-btn:hover:not(:disabled) { border-color: var(--border-strong); }
+.ts-chart__picker-btn:disabled { cursor: default; opacity: 0.7; }
+.ts-chart__picker-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ts-chart__picker-caret { color: var(--muted); font-size: 9px; flex: none; }
+.ts-chart__picker-pop { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 5; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28); overflow: hidden; }
+.ts-chart__picker-pop[hidden] { display: none; }
+.ts-chart__picker-search { width: 100%; height: 34px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; padding: 0 10px; background: var(--surface); color: var(--ink); font-size: 12px; }
+.ts-chart__picker-search:focus { outline: none; }
+.ts-chart__picker-list { list-style: none; margin: 0; padding: 4px; max-height: 220px; overflow-y: auto; }
+.ts-chart__picker-item { padding: 7px 9px; border-radius: 5px; font-size: 12.5px; color: var(--ink); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ts-chart__picker-item:hover, .ts-chart__picker-item.is-active { background: var(--accent-soft); color: var(--accent); }
+.ts-chart__picker-empty { padding: 10px; color: var(--muted); font-size: 12px; text-align: center; }
+.ts-chart__or { font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); opacity: 0.7; }
+.ts-chart__or[hidden] { display: none; }
 .ts-chart__row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 2px; }
 .ts-chart__hint { color: var(--negative); font-size: 12px; }
 .ts-chart__hint[hidden] { display: none; }
@@ -92,6 +113,26 @@ export default definePlugin({
     card.hidden = true;
     const form = h('form', 'ts-chart__form');
     const label = h('label');
+    // Custom combobox (native <select> looks off-brand): a button + a searchable popup list.
+    const picker = h('div', 'ts-chart__picker');
+    const pickerBtn = h('button', 'ts-chart__picker-btn');
+    pickerBtn.type = 'button';
+    pickerBtn.setAttribute('aria-haspopup', 'listbox');
+    pickerBtn.setAttribute('aria-expanded', 'false');
+    const pickerLabel = h('span', 'ts-chart__picker-label', 'Select a saved answer…');
+    const pickerCaret = h('span', 'ts-chart__picker-caret', '▾');
+    pickerBtn.append(pickerLabel, pickerCaret);
+    const pickerPop = h('div', 'ts-chart__picker-pop');
+    pickerPop.hidden = true;
+    const pickerSearch = h('input', 'ts-chart__picker-search');
+    pickerSearch.type = 'text';
+    pickerSearch.placeholder = 'Search answers…';
+    pickerSearch.setAttribute('aria-label', 'Search saved answers');
+    const pickerList = h('ul', 'ts-chart__picker-list');
+    pickerList.setAttribute('role', 'listbox');
+    pickerPop.append(pickerSearch, pickerList);
+    picker.append(pickerBtn, pickerPop);
+    const orLabel = h('div', 'ts-chart__or', 'or paste an ID');
     const input = h('input');
     input.setAttribute('aria-label', 'ThoughtSpot value');
     const hint = h('div', 'ts-chart__hint');
@@ -102,7 +143,7 @@ export default definePlugin({
     const submit = h('button', 'tb-btn tb-btn--primary', 'Load');
     submit.type = 'submit';
     row.append(cancel, submit);
-    form.append(label, input, hint, row);
+    form.append(label, picker, orLabel, input, hint, row);
     card.append(form);
     root.append(stage, card);
     host.append(root);
@@ -170,7 +211,10 @@ export default definePlugin({
       const dataFor = (queries: ChartQuery[]) =>
         queries.map((q) => projectRows(source, q.queryColumns.map((c) => c.id)));
 
-      let started = false;
+      // Re-runs on every InitStart, not just the first: moving a panel reparents the
+      // iframe, which reloads the chart bundle and makes it re-emit InitStart. We must
+      // re-initialise it then, or it stays blank.
+      let initializing = false;
       const runInit = async () => {
         const init = await send('Initialize', {
           chartModel,
@@ -202,9 +246,13 @@ export default definePlugin({
           if (!data?.eventType) return SKIP;
           switch (data.eventType) {
             case 'InitStart':
-              if (!started) {
-                started = true;
-                runInit().catch(showError);
+              if (!initializing) {
+                initializing = true;
+                runInit()
+                  .catch(showError)
+                  .finally(() => {
+                    initializing = false;
+                  });
               }
               return { hasError: false };
             case 'GetDataForQuery':
@@ -250,16 +298,99 @@ export default definePlugin({
       if (!state.answerId) showEmpty('No answer loaded.');
     };
 
+    const loadAnswer = (id: string) => {
+      state.answerId = id;
+      api.storage.set(state);
+      closePrompt();
+      updateCommands();
+      render(id).catch(showError);
+    };
+
+    // The searchable answer list backing the custom combobox.
+    let answers: AnswerRef[] = [];
+    let answersLoaded = false;
+
+    const renderPickerList = () => {
+      const q = pickerSearch.value.trim().toLowerCase();
+      const matches = q ? answers.filter((a) => a.name.toLowerCase().includes(q)) : answers;
+      pickerList.replaceChildren();
+      if (matches.length === 0) {
+        pickerList.append(h('li', 'ts-chart__picker-empty', answers.length ? 'No matches' : 'No saved answers'));
+        return;
+      }
+      for (const a of matches) {
+        const item = h('li', 'ts-chart__picker-item', a.name);
+        item.setAttribute('role', 'option');
+        item.title = a.name;
+        item.onclick = () => {
+          closePicker();
+          loadAnswer(a.id);
+        };
+        pickerList.append(item);
+      }
+    };
+
+    const openPicker = () => {
+      if (pickerBtn.disabled) return;
+      pickerPop.hidden = false;
+      pickerBtn.setAttribute('aria-expanded', 'true');
+      pickerSearch.value = '';
+      renderPickerList();
+      pickerSearch.focus();
+    };
+    function closePicker() {
+      pickerPop.hidden = true;
+      pickerBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    pickerBtn.onclick = () => (pickerPop.hidden ? openPicker() : closePicker());
+    pickerSearch.oninput = renderPickerList;
+    pickerSearch.onkeydown = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        closePicker();
+        pickerBtn.focus();
+      }
+    };
+    // Close the popup when the user clicks anywhere outside it (crosses the shadow boundary).
+    const onDocPointerDown = (e: Event) => {
+      if (!pickerPop.hidden && !e.composedPath().includes(picker)) closePicker();
+    };
+    document.addEventListener('pointerdown', onDocPointerDown, true);
+
+    // Fill the list once. Degrades to just the ID field on failure.
+    const populateAnswers = async () => {
+      if (answersLoaded) return;
+      pickerBtn.disabled = true;
+      pickerLabel.textContent = 'Loading answers…';
+      try {
+        const base = new URL(state.listBase, document.baseURI);
+        answers = await listAnswers((u, init) => api.net.fetch(u, init), base);
+        pickerBtn.disabled = answers.length === 0;
+        pickerLabel.textContent = answers.length ? 'Select a saved answer…' : 'No saved answers found';
+        answersLoaded = answers.length > 0;
+        if (!pickerPop.hidden) renderPickerList();
+      } catch {
+        pickerBtn.disabled = true;
+        pickerLabel.textContent = 'Couldn’t list answers — paste an ID';
+      }
+    };
+
     // Show the prompt card for either the Answer ID or the ThoughtSpot URL.
     const openPrompt = (mode: 'answer' | 'tshost') => {
       prompt = mode;
       hint.hidden = true;
+      const pickAnswer = mode === 'answer';
+      picker.hidden = !pickAnswer;
+      orLabel.hidden = !pickAnswer;
       if (mode === 'answer') {
-        label.textContent = 'ThoughtSpot Answer ID';
+        label.textContent = 'Saved ThoughtSpot answer';
         input.type = 'text';
         input.placeholder = 'e.g. 0fb54198-868d-45de-8929-139b0089e964';
         input.value = state.answerId;
         submit.textContent = 'Load';
+        closePicker();
+        void populateAnswers();
       } else {
         label.textContent = 'ThoughtSpot URL (for “Open in ThoughtSpot”)';
         input.type = 'url';
@@ -270,8 +401,7 @@ export default definePlugin({
       // Cancelling only makes sense once something is already on screen.
       cancel.hidden = mode === 'answer' && !state.answerId;
       card.hidden = false;
-      input.focus();
-      input.select();
+      (pickAnswer ? pickerBtn : input).focus();
     };
 
     // Rebuild the right-click menu to match what is currently loaded.
@@ -306,11 +436,7 @@ export default definePlugin({
         return;
       }
       if (!value) return;
-      state.answerId = value;
-      api.storage.set(state);
-      closePrompt();
-      updateCommands();
-      render(value).catch(showError);
+      loadAnswer(value);
     };
     cancel.onclick = () => closePrompt();
 
@@ -327,6 +453,7 @@ export default definePlugin({
     api.onUnmount(() => {
       generation += 1;
       stopListening?.();
+      document.removeEventListener('pointerdown', onDocPointerDown, true);
     });
 
     updateCommands();

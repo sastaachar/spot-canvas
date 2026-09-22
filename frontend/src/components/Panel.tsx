@@ -16,8 +16,15 @@ const bus = new EventBus((iid, phase, error) => {
   console.warn(`[spot-canvas] plugin ${iid} threw in ${phase}`, error);
 });
 
+// Sits above any stored panel.z (which grows modestly via nextZ) so the active
+// widget is never hidden behind its neighbours while selected or dragged.
+const ACTIVE_Z = 100000;
+
 interface Props {
   panel: PanelState;
+  /** 1-based stacking position (1 = back) and total, for the depth badge. */
+  depth: number;
+  depthTotal: number;
 }
 
 type DragMode = 'move' | 'resize';
@@ -31,16 +38,20 @@ function mountRoot(host: HTMLElement): ShadowRoot {
   return root;
 }
 
-export function Panel({ panel }: Props) {
+export function Panel({ panel, depth, depthTotal }: Props) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
   const selected = useUiStore((s) => s.selectedIid === panel.iid);
   const renaming = useUiStore((s) => s.renamingIid === panel.iid);
   const moving = useUiStore((s) => s.movingIid === panel.iid);
+  const editMode = useUiStore((s) => s.editMode);
+  // Edit mode makes every widget draggable and shows its depth badge; outside it, a
+  // single widget can still be moved via the "Move" menu action (movingIid).
+  const canDrag = editMode || moving;
   const [draft, setDraft] = useState(panel.title ?? '');
   const renameRef = useRef<HTMLInputElement>(null);
   const plugin = getPlugin(panel.pluginId);
-  const { movePanel, resizePanel, focusPanel } = useCanvasStore.getState();
+  const { movePanel, resizePanel, focusPanel, raisePanel, lowerPanel } = useCanvasStore.getState();
 
   useEffect(() => {
     const body = bodyRef.current;
@@ -113,7 +124,7 @@ export function Panel({ panel }: Props) {
 
   // Widgets are locked in place. "Move" from the menu unlocks one drag or resize, then it locks again.
   const startDrag = (mode: DragMode) => (e: ReactPointerEvent<HTMLElement>) => {
-    if (e.button !== 0 || renaming || !moving) return;
+    if (e.button !== 0 || renaming || !canDrag) return;
     if (mode === 'move' && (e.target as HTMLElement).closest('button')) return;
     e.preventDefault();
     focusPanel(panel.iid);
@@ -157,10 +168,12 @@ export function Panel({ panel }: Props) {
 
   return (
     <section
-      className={`panel${panel.groupId ? ' is-grouped' : ''}${selected ? ' is-selected' : ''}${moving ? ' is-moving' : ''}`}
+      className={`panel${panel.groupId ? ' is-grouped' : ''}${selected ? ' is-selected' : ''}${moving ? ' is-moving' : ''}${editMode ? ' is-editing' : ''}`}
       aria-label={name}
       aria-selected={selected}
-      style={{ ...rectStyle(panel), zIndex: panel.z }}
+      // While a widget is selected or dragged it floats above everything (temporary,
+      // reverts to its stored z the moment the interaction stops).
+      style={{ ...rectStyle(panel), zIndex: moving ? ACTIVE_Z + 1 : selected ? ACTIVE_Z : panel.z }}
       onPointerDown={() => {
         focusPanel(panel.iid);
         useUiStore.getState().select(panel.iid);
@@ -188,14 +201,43 @@ export function Panel({ panel }: Props) {
           )}
         </header>
       )}
-      {moving && <div className="panel__mover" aria-label="Drag to move" onPointerDown={startDrag('move')} />}
+      {editMode && depthTotal > 1 && (
+        <div className="panel__depth" aria-label={`Depth ${depth} of ${depthTotal}`}>
+          <button
+            type="button"
+            className="panel__depth-btn"
+            aria-label="Send backward"
+            title="Send backward"
+            disabled={depth <= 1}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => lowerPanel(panel.iid)}
+          >
+            ▾
+          </button>
+          <span className="panel__depth-num" title="Stacking order (1 = back)">
+            {depth}
+          </span>
+          <button
+            type="button"
+            className="panel__depth-btn"
+            aria-label="Bring forward"
+            title="Bring forward"
+            disabled={depth >= depthTotal}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => raisePanel(panel.iid)}
+          >
+            ▴
+          </button>
+        </div>
+      )}
+      {canDrag && <div className="panel__mover" aria-label="Drag to move" onPointerDown={startDrag('move')} />}
       <div className="panel__body" ref={bodyRef} hidden={failed || !plugin} />
       {(failed || !plugin) && (
         <p className="panel__error">
           {plugin ? 'This plugin failed to start. Remove it and add it again.' : 'This plugin is no longer installed.'}
         </p>
       )}
-      {moving && <div className="panel__grip" aria-hidden="true" onPointerDown={startDrag('resize')} />}
+      {canDrag && <div className="panel__grip" aria-hidden="true" onPointerDown={startDrag('resize')} />}
     </section>
   );
 }

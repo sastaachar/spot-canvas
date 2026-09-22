@@ -464,9 +464,8 @@ describe('groups', () => {
     const rename = screen.getByRole('textbox', { name: 'Group name' });
     fireEvent.change(rename, { target: { value: 'Sales' } });
     fireEvent.keyDown(rename, { key: 'Enter' });
-    const group = screen.getByRole('region', { name: 'Group Sales' });
+    expect(screen.getByRole('region', { name: 'Group Sales' })).toBeTruthy();
     expect(useCanvasStore.getState().groups['group#1']).toMatchObject({ x: 2, y: 2, w: 10, h: 7, title: 'Sales', color: 'blue' });
-    expect(within(group).getByText('0 panels')).toBeTruthy();
 
     act(() => {
       useCanvasStore.getState().addPanel(getPlugin('spotcanvas.note')!.manifest, { x: 20, y: 13 });
@@ -478,7 +477,6 @@ describe('groups', () => {
     // dropped inside: the group lays it out in its flow, first slot under the title row
     const [state] = Object.values(useCanvasStore.getState().panels);
     expect(state).toMatchObject({ x: 2, y: 3, groupId: 'group#1' });
-    expect(within(group).getByText('1 panel')).toBeTruthy();
 
     unlockMove(panel);
     dragHeader(moverOf(panel), [40, 60], [900, 900]);
