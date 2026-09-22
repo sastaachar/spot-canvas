@@ -588,25 +588,30 @@ describe('profile, theme and chat', () => {
     await renderSignedIn();
     useChatStore.setState({ turns: [{ role: 'user', content: 'earlier question' }, { role: 'assistant', content: 'earlier answer' }] });
     const input = screen.getByRole('textbox', { name: 'Message Spotter' });
-    expect(screen.queryByRole('dialog', { name: 'Spotter conversation' })).toBeNull();
+    const shell = input.closest('.chat')!;
+    const log = () => screen.getByTestId('chat-log');
+    expect(shell.className).not.toContain('is-expanded');
+    expect(log().getAttribute('aria-hidden')).toBe('true');
+    expect(within(log()).queryByText('earlier question')).toBeNull();
 
     fireEvent.focus(input);
-    const panel = screen.getByRole('dialog', { name: 'Spotter conversation' });
-    expect(within(panel).getByText('earlier question').className).toContain('chat__msg--user');
-    expect(within(panel).getByText('earlier answer').className).toContain('chat__msg--assistant');
+    expect(shell.className).toContain('is-expanded');
+    expect(log().getAttribute('aria-hidden')).toBe('false');
+    expect(within(log()).getByText('earlier question').className).toContain('chat__msg--user');
+    expect(within(log()).getByText('earlier answer').className).toContain('chat__msg--assistant');
     expect(input.getAttribute('aria-expanded')).toBe('true');
 
     fireEvent.pointerDown(canvas());
-    expect(screen.queryByRole('dialog', { name: 'Spotter conversation' })).toBeNull();
+    expect(shell.className).not.toContain('is-expanded');
 
     fireEvent.pointerDown(input);
-    expect(screen.getByRole('dialog', { name: 'Spotter conversation' })).toBeTruthy();
+    expect(shell.className).toContain('is-expanded');
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('dialog', { name: 'Spotter conversation' })).toBeNull();
+    expect(shell.className).not.toContain('is-expanded');
 
     fireEvent.focus(input);
     fireEvent.click(screen.getByRole('button', { name: 'Collapse' }));
-    expect(screen.queryByRole('dialog', { name: 'Spotter conversation' })).toBeNull();
+    expect(shell.className).not.toContain('is-expanded');
   });
 
   it('shows replies in the transcript while expanded instead of the floating bubble', async () => {
@@ -616,7 +621,7 @@ describe('profile, theme and chat', () => {
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: 'do something' } });
     fireEvent.submit(input.closest('form')!);
-    const panel = screen.getByRole('dialog', { name: 'Spotter conversation' });
+    const panel = screen.getByRole('log', { name: 'Spotter conversation' });
     expect(within(panel).getByRole('status').textContent).toContain('working');
     expect(await within(panel).findByText('Here you go.')).toBeTruthy();
     expect(within(panel).getByText('do something')).toBeTruthy();

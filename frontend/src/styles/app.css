@@ -612,7 +612,7 @@ h3 {
   color: var(--bg);
 }
 
-/* ---------- chat bar ---------- */
+/* ---------- chat bar (expands upward into the conversation) ---------- */
 
 .chat {
   position: absolute;
@@ -623,75 +623,84 @@ h3 {
   display: grid;
   gap: 8px;
   z-index: 45;
+  transition: width 220ms ease;
 }
 
 .chat.is-expanded {
   width: min(720px, calc(100% - 32px));
 }
 
-.chat__panel {
+.chat__bubble {
   display: flex;
-  flex-direction: column;
-  height: 40vh;
-  min-height: 240px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px 10px 14px;
+  border-radius: 14px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 13.5px;
+  line-height: 1.45;
   box-shadow: var(--shadow);
-  overflow: hidden;
-  animation: chat-rise 180ms ease-out;
 }
 
-@keyframes chat-rise {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+.chat__bubble.is-error {
+  background: var(--negative);
+  color: #ffffff;
+}
+
+.chat__bubble button {
+  color: inherit;
+  opacity: 0.7;
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+/* The bar is one surface: a pill when idle, a tall rounded sheet when open. */
+.chatbar {
+  display: flex;
+  flex-direction: column;
+  height: 46px;
+  border-radius: 23px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: height 240ms cubic-bezier(0.4, 0, 0.2, 1), border-radius 240ms ease;
+}
+
+.chat.is-expanded .chatbar {
+  height: 40vh;
+  min-height: 260px;
+  border-radius: 18px;
+}
+
+.chatbar:focus-within {
+  border-color: var(--accent);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .chat__panel {
-    animation: none;
+  .chat,
+  .chatbar {
+    transition: none;
   }
-}
-
-.chat__panel-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 10px 10px 14px;
-  border-bottom: 1px solid var(--border);
-}
-
-.chat__panel-head h2 {
-  margin: 0;
-  flex: 1;
-  font-size: 13px;
-}
-
-.chat__panel-head button {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  color: var(--muted);
-}
-
-.chat__panel-head button:hover {
-  background: var(--surface-2);
-  color: var(--ink);
 }
 
 .chat__log {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 14px;
+  padding: 14px 14px 6px;
   display: grid;
   gap: 8px;
   align-content: start;
+  opacity: 0;
+  transition: opacity 160ms ease 80ms;
+}
+
+.chat.is-expanded .chat__log {
+  opacity: 1;
 }
 
 .chat__hint {
@@ -737,47 +746,17 @@ h3 {
   color: var(--negative);
 }
 
-.chat__bubble {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px 10px 14px;
-  border-radius: 14px;
-  background: var(--ink);
-  color: var(--bg);
-  font-size: 13.5px;
-  line-height: 1.45;
-  box-shadow: var(--shadow);
-}
-
-.chat__bubble.is-error {
-  background: var(--negative);
-  color: #ffffff;
-}
-
-.chat__bubble button {
-  color: inherit;
-  opacity: 0.7;
-  width: 22px;
-  height: 22px;
+.chatbar__row {
   flex: none;
-}
-
-.chatbar {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 46px;
+  height: 44px;
   padding: 0 6px 0 14px;
-  border-radius: 999px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
 }
 
-.chatbar:focus-within {
-  border-color: var(--accent);
+.chat.is-expanded .chatbar__row {
+  border-top: 1px solid var(--border);
 }
 
 .chatbar__mark {
@@ -810,7 +789,7 @@ h3 {
   }
 }
 
-.chatbar input {
+.chatbar__row input {
   flex: 1;
   min-width: 0;
   border: 0;
@@ -819,23 +798,35 @@ h3 {
   font-size: 14px;
 }
 
-.chatbar input:focus-visible {
+.chatbar__row input:focus-visible {
   outline: none;
 }
 
-.chatbar input::placeholder {
+.chatbar__row input::placeholder {
   color: var(--muted);
 }
 
-.chatbar button {
+.chatbar__row button {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--accent-fill);
-  color: var(--accent-ink);
-  font-size: 15px;
   display: grid;
   place-items: center;
+  font-size: 15px;
+}
+
+.chatbar__row button[type='submit'] {
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+}
+
+.chatbar__collapse {
+  color: var(--muted);
+}
+
+.chatbar__collapse:hover {
+  background: var(--surface-2);
+  color: var(--ink);
 }
 
 /* ---------- drawer ---------- */

@@ -55,40 +55,6 @@ export function ChatBar() {
 
   return (
     <div ref={rootRef} className={`chat${expanded ? ' is-expanded' : ''}`}>
-      {expanded && (
-        <section className="chat__panel" role="dialog" aria-label="Spotter conversation">
-          <header className="chat__panel-head">
-            <span className="chatbar__mark" aria-hidden="true" />
-            <h2>Spotter</h2>
-            <button type="button" aria-label="Collapse" onClick={() => setExpanded(false)}>
-              ✕
-            </button>
-          </header>
-          <div ref={logRef} className="chat__log" aria-live="polite">
-            {turns.length === 0 && !pending && (
-              <p className="chat__hint">
-                Ask for changes to your homepage or questions about your data. Try “add a note for standup in a Today group” or “build my
-                homepage from what I used last quarter”.
-              </p>
-            )}
-            {turns.map((turn, i) => (
-              <div key={`${i}-${turn.role}`} className={`chat__msg chat__msg--${turn.role}`}>
-                {turn.content}
-              </div>
-            ))}
-            {pending && (
-              <div className="chat__msg chat__msg--assistant is-pending" role="status">
-                Spotter is working…
-              </div>
-            )}
-            {error && (
-              <div className="chat__msg chat__msg--error" role="alert">
-                {error}
-              </div>
-            )}
-          </div>
-        </section>
-      )}
       {bubble && (
         <div className={`chat__bubble${error ? ' is-error' : ''}`} role="status">
           <span>{bubble}</span>
@@ -98,21 +64,52 @@ export function ChatBar() {
         </div>
       )}
       <form className={`chatbar${pending ? ' is-pending' : ''}`} onSubmit={submit} aria-label="Ask Spotter">
-        <span className="chatbar__mark" aria-hidden="true" />
-        <input
-          type="text"
-          value={text}
-          placeholder={pending ? 'Spotter is working…' : 'Ask Spotter to change your homepage or your data…'}
-          aria-label="Message Spotter"
-          aria-expanded={expanded}
-          disabled={pending}
-          onFocus={() => setExpanded(true)}
-          onPointerDown={() => setExpanded(true)}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <button type="submit" aria-label="Send" disabled={pending || !text.trim()}>
-          ↑
-        </button>
+        <div ref={logRef} className="chat__log" role="log" aria-label="Spotter conversation" aria-hidden={!expanded} data-testid="chat-log">
+          {expanded && turns.length === 0 && !pending && !error && (
+            <p className="chat__hint">
+              Ask for changes to your homepage or questions about your data. Try “add a note for standup in a Today group” or “build my
+              homepage from what I used last quarter”.
+            </p>
+          )}
+          {expanded &&
+            turns.map((turn, i) => (
+              <div key={`${i}-${turn.role}`} className={`chat__msg chat__msg--${turn.role}`}>
+                {turn.content}
+              </div>
+            ))}
+          {expanded && pending && (
+            <div className="chat__msg chat__msg--assistant is-pending" role="status">
+              Spotter is working…
+            </div>
+          )}
+          {expanded && error && (
+            <div className="chat__msg chat__msg--error" role="alert">
+              {error}
+            </div>
+          )}
+        </div>
+        <div className="chatbar__row">
+          <span className="chatbar__mark" aria-hidden="true" />
+          <input
+            type="text"
+            value={text}
+            placeholder={pending ? 'Spotter is working…' : 'Ask Spotter to change your homepage or your data…'}
+            aria-label="Message Spotter"
+            aria-expanded={expanded}
+            disabled={pending}
+            onFocus={() => setExpanded(true)}
+            onPointerDown={() => setExpanded(true)}
+            onChange={(e) => setText(e.target.value)}
+          />
+          {expanded && (
+            <button type="button" className="chatbar__collapse" aria-label="Collapse" onClick={() => setExpanded(false)}>
+              ⌄
+            </button>
+          )}
+          <button type="submit" aria-label="Send" disabled={pending || !text.trim()}>
+            ↑
+          </button>
+        </div>
       </form>
     </div>
   );
