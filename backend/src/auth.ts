@@ -51,9 +51,8 @@ export function cookieHeaderFrom(res: Response): string {
     .join('; ');
 }
 
-const isIpLiteral = (host: string): boolean => /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.startsWith('[');
-
-export function normaliseClusterUrl(raw: string, allowLocal: boolean): string {
+/** Any http(s) origin is accepted: hostnames, IPs, localhost, custom ports. A bare host gets https. */
+export function normaliseClusterUrl(raw: string): string {
   const value = raw.trim();
   if (!value) throw new ClusterUrlError('Enter your ThoughtSpot cluster URL.');
   let url: URL;
@@ -62,12 +61,7 @@ export function normaliseClusterUrl(raw: string, allowLocal: boolean): string {
   } catch {
     throw new ClusterUrlError('That cluster URL is not valid.');
   }
-  const loopback = url.hostname === 'localhost' || url.hostname.endsWith('.localhost') || url.hostname === '127.0.0.1' || url.hostname === '[::1]';
-  if (loopback && !allowLocal) throw new ClusterUrlError('A cluster on localhost needs ALLOW_LOCAL_CLUSTERS=true on the server.');
-  const plainHttpOk = allowLocal && (loopback || isIpLiteral(url.hostname));
-  if (url.protocol !== 'https:' && !plainHttpOk) {
-    throw new ClusterUrlError('The cluster URL must use https.');
-  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new ClusterUrlError('The cluster URL must start with http:// or https://.');
   return url.origin;
 }
 
@@ -148,12 +142,8 @@ async function sessionUserByCookie(host: string, cookie: string, fetchImpl: Fetc
   return { id: parsed.data.id, name: parsed.data.name, displayName: parsed.data.display_name ?? parsed.data.name };
 }
 
-export async function loginToCluster(
-  credentials: ClusterCredentials,
-  allowLocal: boolean,
-  fetchImpl: FetchLike = fetch
-): Promise<ClusterLogin | null> {
-  const host = normaliseClusterUrl(credentials.clusterUrl, allowLocal);
+export async function loginToCluster(credentials: ClusterCredentials, fetchImpl: FetchLike = fetch): Promise<ClusterLogin | null> {
+  const host = normaliseClusterUrl(credentials.clusterUrl);
   let res: Response;
   try {
     res = await fetchImpl(new URL(LOGIN_PATH, host).toString(), {

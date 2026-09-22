@@ -19,6 +19,11 @@ for (const file of [path.resolve(import.meta.dirname, '../../.env'), path.resolv
   if (existsSync(file)) process.loadEnvFile(file);
 }
 
+// A cluster with a self-signed certificate: trust its CA (verification stays on).
+if (process.env['CLUSTER_CA_FILE'] && !process.env['NODE_EXTRA_CA_CERTS']) {
+  console.log('CLUSTER_CA_FILE is set; start with NODE_EXTRA_CA_CERTS=<that file> so Node trusts the cluster certificate.');
+}
+
 const config = loadConfig();
 const layouts = new LayoutStore(config.dataDir);
 await layouts.init();

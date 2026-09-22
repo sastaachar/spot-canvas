@@ -27,8 +27,7 @@ const config: Config = {
   dataDir: '',
   sessionTtlMs: 60_000,
   cookieSecure: false,
-  gateway: { url: 'https://llm.example/v1', key: 'test-key', model: 'test-model' },
-  allowLocalClusters: false
+  gateway: { url: 'https://llm.example/v1', key: 'test-key', model: 'test-model' }
 };
 
 const LOGIN_LIMIT = 6;
@@ -231,13 +230,13 @@ describe('sign in', () => {
     expect(wrong.status).toBe(401);
     expect(await wrong.json()).toEqual({ error: 'invalid_credentials' });
 
-    const local = await api('/api/session', {
+    const bad = await api('/api/session', {
       method: 'POST',
       headers: { ...json, ...csrf },
-      body: JSON.stringify({ clusterUrl: 'localhost', username: 'jdoe', password: 'right' })
+      body: JSON.stringify({ clusterUrl: 'ftp://nope', username: 'jdoe', password: 'right' })
     });
-    expect(local.status).toBe(400);
-    expect(await local.json()).toMatchObject({ error: 'invalid_cluster_url' });
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toMatchObject({ error: 'invalid_cluster_url' });
   });
 
   it('refreshes the session cookie once the session is past half its life', async () => {

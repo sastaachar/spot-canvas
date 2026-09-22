@@ -17,10 +17,8 @@ describe('loadConfig', () => {
       frontendOrigin: 'http://localhost:5173',
       thoughtSpotHost: null,
       dataDir: 'data',
-      cookieSecure: true,
-      allowLocalClusters: false
+      cookieSecure: true
     });
-    expect(loadConfig({ DEV_USERS: devUsers, ALLOW_LOCAL_CLUSTERS: 'true' }).allowLocalClusters).toBe(true);
     expect(config.devUsers.get('dev-alice-token')).toEqual({ id: 'alice', name: 'alice', displayName: 'alice' });
   });
 

@@ -85,8 +85,7 @@ describe('chain and authenticatorFor', () => {
     dataDir: 'data',
     sessionTtlMs: 1000,
     cookieSecure: true,
-    gateway: null,
-    allowLocalClusters: false
+    gateway: null
   };
 
   it('returns the first match and null when nobody matches', async () => {
@@ -107,23 +106,20 @@ describe('chain and authenticatorFor', () => {
 });
 
 describe('normaliseClusterUrl', () => {
-  it('accepts https hosts with or without a scheme and strips paths', () => {
-    expect(normaliseClusterUrl('my.thoughtspot.cloud', false)).toBe('https://my.thoughtspot.cloud');
-    expect(normaliseClusterUrl(' https://my.thoughtspot.cloud/#/home ', false)).toBe('https://my.thoughtspot.cloud');
-    expect(normaliseClusterUrl('https://ts.example:8443', false)).toBe('https://ts.example:8443');
+  it('accepts any http(s) origin — hosts, IPs, localhost, ports — and strips paths', () => {
+    expect(normaliseClusterUrl('my.thoughtspot.cloud')).toBe('https://my.thoughtspot.cloud');
+    expect(normaliseClusterUrl(' https://my.thoughtspot.cloud/#/home ')).toBe('https://my.thoughtspot.cloud');
+    expect(normaliseClusterUrl('https://ts.example:8443')).toBe('https://ts.example:8443');
+    expect(normaliseClusterUrl('10.0.0.4')).toBe('https://10.0.0.4');
+    expect(normaliseClusterUrl('http://10.0.0.4:8443')).toBe('http://10.0.0.4:8443');
+    expect(normaliseClusterUrl('http://localhost:8443')).toBe('http://localhost:8443');
+    expect(normaliseClusterUrl('127.0.0.1')).toBe('https://127.0.0.1');
   });
 
-  it('accepts https IP addresses, and rejects blanks, garbage, http and loopback unless allowed', () => {
-    expect(normaliseClusterUrl('10.0.0.4', false)).toBe('https://10.0.0.4');
-    expect(normaliseClusterUrl('https://10.0.0.4:8443/', false)).toBe('https://10.0.0.4:8443');
-    expect(() => normaliseClusterUrl('  ', false)).toThrow(ClusterUrlError);
-    expect(() => normaliseClusterUrl('http://[::1', false)).toThrow(/not valid/);
-    expect(() => normaliseClusterUrl('http://ts.example', false)).toThrow(/https/);
-    expect(() => normaliseClusterUrl('http://10.0.0.4', false)).toThrow(/https/);
-    expect(() => normaliseClusterUrl('localhost:8443', false)).toThrow(/ALLOW_LOCAL_CLUSTERS/);
-    expect(() => normaliseClusterUrl('127.0.0.1', false)).toThrow(/ALLOW_LOCAL_CLUSTERS/);
-    expect(normaliseClusterUrl('http://localhost:8443', true)).toBe('http://localhost:8443');
-    expect(normaliseClusterUrl('http://10.0.0.4:8443', true)).toBe('http://10.0.0.4:8443');
+  it('rejects blanks, garbage and non-http schemes', () => {
+    expect(() => normaliseClusterUrl('  ')).toThrow(ClusterUrlError);
+    expect(() => normaliseClusterUrl('http://[::1')).toThrow(/not valid/);
+    expect(() => normaliseClusterUrl('ftp://ts.example')).toThrow(/http/);
   });
 });
 
@@ -141,7 +137,7 @@ describe('loginToCluster', () => {
     const fetchImpl = vi.fn(async (url: string) =>
       url.endsWith('/auth/session/login') ? loginOk() : response(200, { id: 'guid-1', name: 'jdoe', display_name: 'J. Doe' })
     );
-    const login = await loginToCluster(creds, false, fetchImpl);
+    const login = await loginToCluster(creds, fetchImpl);
     expect(login?.identity).toEqual({ id: 'ts.example.com/guid-1', name: 'jdoe', displayName: 'J. Doe', cluster: 'ts.example.com' });
     expect(login?.cluster).toMatchObject({ host: 'https://ts.example.com', cookie: 'JSESSIONID=abc123; clientId=xyz' });
     const [loginUrl, loginInit] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
@@ -156,12 +152,12 @@ describe('loginToCluster', () => {
   });
 
   it('returns null for rejected credentials and raises UpstreamError for cluster trouble', async () => {
-    expect(await loginToCluster(creds, false, async () => response(401, {}))).toBeNull();
-    expect(await loginToCluster(creds, false, async () => response(400, {}))).toBeNull();
+    expect(await loginToCluster(creds, async () => response(401, {}))).toBeNull();
+    expect(await loginToCluster(creds, async () => response(400, {}))).toBeNull();
     const userRejected = vi.fn(async (url: string) => (url.endsWith('/auth/session/login') ? loginOk() : response(401, {})));
-    expect(await loginToCluster(creds, false, userRejected)).toBeNull();
+    expect(await loginToCluster(creds, userRejected)).toBeNull();
     const noCookie = async () => response(200, {});
-    await expect(loginToCluster(creds, false, noCookie)).rejects.toThrow(/session cookie/);
+    await expect(loginToCluster(creds, noCookie)).rejects.toThrow(/session cookie/);
     for (const bad of [
       async () => {
         throw new Error('ECONNREFUSED');
@@ -171,9 +167,9 @@ describe('loginToCluster', () => {
       vi.fn(async (url: string) => (url.endsWith('/auth/session/login') ? loginOk() : response(200, { nope: 1 }))),
       vi.fn(async (url: string) => (url.endsWith('/auth/session/login') ? loginOk() : response(503, {})))
     ]) {
-      await expect(loginToCluster(creds, false, bad)).rejects.toBeInstanceOf(UpstreamError);
+      await expect(loginToCluster(creds, bad)).rejects.toBeInstanceOf(UpstreamError);
     }
-    await expect(loginToCluster({ ...creds, clusterUrl: 'http://x' }, false)).rejects.toBeInstanceOf(ClusterUrlError);
+    await expect(loginToCluster({ ...creds, clusterUrl: 'ftp://x' })).rejects.toBeInstanceOf(ClusterUrlError);
   });
 
   it('parses Set-Cookie headers into a Cookie header, with a fallback for joined headers', () => {

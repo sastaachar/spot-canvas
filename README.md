@@ -31,7 +31,7 @@ For local work without a cluster, uncomment `DEV_DEFAULT_USER=alice` in `backend
 
 ## How it fits together
 
-- The frontend never talks to ThoughtSpot for identity. It posts the cluster URL and credentials to `/api/login`; the backend signs in to the cluster with `auth/session/login` and answers with its own HttpOnly, SameSite=Strict session cookie. The cluster's cookies never reach the browser. Cluster URLs must be public https addresses; local ones are refused unless `ALLOW_LOCAL_CLUSTERS=true`.
+- The frontend never talks to ThoughtSpot for identity. It posts the cluster URL and credentials to `/api/login`; the backend signs in to the cluster with `auth/session/login` and answers with its own HttpOnly, SameSite=Strict session cookie. The cluster's cookies never reach the browser. Any http or https cluster origin is accepted (hostnames, IPs, localhost, custom ports); a self-signed dev cluster needs its CA passed to Node via `NODE_EXTRA_CA_CERTS`.
 - Every mutating request carries an `X-Requested-With` header; the backend rejects requests without it, and only accepts cross-origin calls from `FRONTEND_ORIGIN`.
 - The layout is loaded on sign-in and saved (debounced) after every change. The backend validates the document shape and stores it under a hash of the user id, never the raw id.
 - Sign-in attempts and overall traffic are rate limited per address. All responses are `no-store`.

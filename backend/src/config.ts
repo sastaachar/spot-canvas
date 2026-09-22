@@ -24,7 +24,6 @@ export interface Config {
   sessionTtlMs: number;
   cookieSecure: boolean;
   gateway: GatewayConfig | null;
-  allowLocalClusters: boolean;
 }
 
 const DEFAULT_HOST = '127.0.0.1';
@@ -124,7 +123,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     dataDir: env['DATA_DIR'] || DEFAULT_DATA_DIR,
     sessionTtlMs: parseInteger('SESSION_TTL_MS', env['SESSION_TTL_MS'], DEFAULT_SESSION_TTL_MS, Number.MAX_SAFE_INTEGER),
     cookieSecure: env['COOKIE_SECURE'] !== 'false',
-    gateway: parseGateway(env),
-    allowLocalClusters: env['ALLOW_LOCAL_CLUSTERS'] === 'true'
+    gateway: parseGateway(env)
   };
 }

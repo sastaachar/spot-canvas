@@ -126,7 +126,7 @@ export function createApp(deps: AppDeps): Handler {
           startSession(res, identity);
           return sendJson(res, 200, { user: userView(identity) });
         }
-        const login = await loginToCluster(body.data, config.allowLocalClusters, deps.clusterFetch);
+        const login = await loginToCluster(body.data, deps.clusterFetch);
         if (!login) throw new HttpError(401, 'invalid_credentials');
         startSession(res, login.identity, login.cluster);
         return sendJson(res, 200, { user: userView(login.identity) });
