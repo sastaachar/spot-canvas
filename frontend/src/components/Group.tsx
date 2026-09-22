@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { cellSize, rectStyle } from '../core/grid';
 import { useMenuStore } from '../core/menu';
 import { useCanvasStore, type GroupState } from '../core/store';
 import { useUiStore } from '../core/ui';
-
-const DRAG_KEEP_VISIBLE = 80;
 
 interface Props {
   group: GroupState;
@@ -38,18 +37,14 @@ export function Group({ group, members }: Props) {
     e.preventDefault();
     const target = e.currentTarget;
     const canvas = target.closest('.canvas') as HTMLElement | null;
-    const bounds =
-      canvas && canvas.clientWidth > 0 ? { w: canvas.clientWidth, h: canvas.clientHeight } : { w: Infinity, h: Infinity };
+    const cell = cellSize(canvas);
     const start = { x: e.clientX, y: e.clientY, gx: group.x, gy: group.y, gw: group.w, gh: group.h };
     target.setPointerCapture(e.pointerId);
     const onMove = (ev: PointerEvent) => {
-      const dx = ev.clientX - start.x;
-      const dy = ev.clientY - start.y;
-      if (mode === 'move') {
-        moveGroup(group.gid, Math.min(bounds.w - DRAG_KEEP_VISIBLE, start.gx + dx), Math.min(bounds.h - DRAG_KEEP_VISIBLE, start.gy + dy));
-      } else {
-        resizeGroup(group.gid, Math.min(bounds.w - start.gx, start.gw + dx), Math.min(bounds.h - start.gy, start.gh + dy));
-      }
+      const dx = (ev.clientX - start.x) / cell.w;
+      const dy = (ev.clientY - start.y) / cell.h;
+      if (mode === 'move') moveGroup(group.gid, start.gx + dx, start.gy + dy);
+      else resizeGroup(group.gid, start.gw + dx, start.gh + dy);
     };
     const onUp = () => {
       target.removeEventListener('pointermove', onMove);
@@ -71,7 +66,7 @@ export function Group({ group, members }: Props) {
     <section
       className={`group group--${group.color}`}
       aria-label={`Group ${group.title}`}
-      style={{ left: group.x, top: group.y, width: group.w, height: group.h }}
+      style={rectStyle(group)}
       onContextMenu={onContextMenu}
     >
       <header className="group__head" onPointerDown={startDrag('move')} onDoubleClick={() => setRenaming(group.gid)}>

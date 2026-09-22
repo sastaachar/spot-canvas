@@ -4,8 +4,8 @@ import { applyTool, THOUGHTSPOT_TOOLS, TOOLS, toolsFor, type CataloguePlugin, ty
 import { ThoughtSpotClient } from './thoughtspot.ts';
 
 const catalogue: CataloguePlugin[] = [
-  { id: 'spotcanvas.note', name: 'Sticky note', kind: 'widget', size: [220, 160] },
-  { id: 'spotcanvas.links', name: 'Links', kind: 'widget', size: [300, 220] }
+  { id: 'spotcanvas.note', name: 'Sticky note', kind: 'widget', size: [4, 3] },
+  { id: 'spotcanvas.link', name: 'Link', kind: 'widget', size: [4, 2] }
 ];
 
 const fresh = (): ToolContext => ({
@@ -38,10 +38,11 @@ describe('panels', () => {
     const b = await applyTool('add_panel', { plugin_id: 'spotcanvas.note' }, ctx);
     expect(a.changed && b.changed).toBe(true);
     const [pa, pb] = ctx.layout.panels;
-    expect(pa).toMatchObject({ iid: 'spotcanvas.note#1', x: 40, y: 40, w: 220, h: 160, z: 1, data: { text: 'a' } });
-    expect(pb).toMatchObject({ iid: 'spotcanvas.note#2', z: 2, data: null });
-    const gap = pb!.x >= pa!.x + pa!.w + 24 || pb!.y >= pa!.y + pa!.h + 24;
-    expect(gap).toBe(true);
+    expect(pa).toMatchObject({ iid: 'spotcanvas.note#1', x: 0, y: 0, w: 4, h: 3, z: 1, data: { text: 'a' } });
+    expect(pb).toMatchObject({ iid: 'spotcanvas.note#2', x: 4, y: 0, z: 2, data: null });
+    expect(a.summary).toBe('Added Sticky note');
+    const huge = await applyTool('add_panel', { plugin_id: 'spotcanvas.note', x: 99, y: 99, w: 99, h: 99 }, ctx);
+    expect(huge.result).toMatchObject({ x: 0, y: 0, w: 24, h: 16 });
   });
 
   it('rejects unknown plugins, unknown groups and bad arguments', async () => {
@@ -58,10 +59,10 @@ describe('panels', () => {
   it('updates title, merges data, moves, resizes, regroups and removes', async () => {
     const ctx = fresh();
     await applyTool('create_group', { title: 'G' }, ctx);
-    await applyTool('add_panel', { plugin_id: 'spotcanvas.links', data: { items: [] } }, ctx);
-    const iid = 'spotcanvas.links#1';
-    await applyTool('update_panel', { iid, title: 'Mine', data: { extra: 1 }, x: -10, y: 5, w: 400, h: 300, group_id: 'group#1' }, ctx);
-    expect(ctx.layout.panels[0]).toMatchObject({ title: 'Mine', data: { items: [], extra: 1 }, x: 0, y: 5, w: 400, h: 300, groupId: 'group#1' });
+    await applyTool('add_panel', { plugin_id: 'spotcanvas.link', data: { name: 'Docs', url: 'https://d' } }, ctx);
+    const iid = 'spotcanvas.link#1';
+    await applyTool('update_panel', { iid, title: 'Mine', data: { extra: 1 }, x: -10, y: 5, w: 6, h: 4, group_id: 'group#1' }, ctx);
+    expect(ctx.layout.panels[0]).toMatchObject({ title: 'Mine', data: { name: 'Docs', url: 'https://d', extra: 1 }, x: 0, y: 5, w: 6, h: 4, groupId: 'group#1' });
     await applyTool('update_panel', { iid, title: null, group_id: null }, ctx);
     expect(ctx.layout.panels[0]).toMatchObject({ title: null, groupId: null });
     expect((await applyTool('update_panel', { iid, group_id: 'group#7' }, ctx)).result).toMatchObject({ error: expect.stringContaining('unknown group') });
@@ -74,13 +75,17 @@ describe('panels', () => {
 
   it('places panels inside a group below its title and keeps them apart', async () => {
     const ctx = fresh();
-    await applyTool('create_group', { title: 'Today', x: 100, y: 100, w: 600, h: 400 }, ctx);
+    await applyTool('create_group', { title: 'Today', x: 2, y: 2, w: 12, h: 8 }, ctx);
     await applyTool('add_panel', { plugin_id: 'spotcanvas.note', group_id: 'group#1' }, ctx);
-    await applyTool('add_panel', { plugin_id: 'spotcanvas.note', group_id: 'group#1' }, ctx);
+    const second = await applyTool('add_panel', { plugin_id: 'spotcanvas.note', group_id: 'group#1' }, ctx);
     const [a, b] = ctx.layout.panels;
-    expect(a).toMatchObject({ x: 116, y: 144, groupId: 'group#1' });
-    expect(b!.x >= a!.x + a!.w + 24 || b!.y >= a!.y + a!.h + 24).toBe(true);
-    expect(b!.x + b!.w).toBeLessThanOrEqual(700 + 24);
+    expect(a).toMatchObject({ x: 2, y: 3, w: 4, h: 3, groupId: 'group#1' });
+    expect(b).toMatchObject({ x: 6, y: 3, groupId: 'group#1' });
+    expect(second.summary).toBe('Added Sticky note in Today');
+    await applyTool('add_panel', { plugin_id: 'spotcanvas.note', group_id: 'group#1' }, ctx);
+    await applyTool('add_panel', { plugin_id: 'spotcanvas.note', group_id: 'group#1' }, ctx);
+    const fourth = ctx.layout.panels[3]!;
+    expect(fourth).toMatchObject({ x: 2, y: 6 });
   });
 });
 
@@ -88,14 +93,16 @@ describe('groups, theme and summary', () => {
   it('creates, updates (moving members), and removes groups with or without panels', async () => {
     const ctx = fresh();
     const created = await applyTool('create_group', { title: 'Sales', color: 'green' }, ctx);
-    expect(created.result).toMatchObject({ gid: 'group#1', x: 40, y: 40, w: 560, h: 380 });
+    expect(created.result).toMatchObject({ gid: 'group#1', x: 0, y: 0, w: 10, h: 7 });
+    expect(created.summary).toBe('Created group Sales');
     await applyTool('add_panel', { plugin_id: 'spotcanvas.note', group_id: 'group#1' }, ctx);
     await applyTool('add_panel', { plugin_id: 'spotcanvas.note' }, ctx);
     const inside = ctx.layout.panels[0]!;
     const before = { x: inside.x, y: inside.y };
-    await applyTool('update_group', { gid: 'group#1', title: 'Revenue', color: 'violet', x: 140, y: 90, w: 700, h: 500 }, ctx);
-    expect(ctx.layout.groups![0]).toMatchObject({ title: 'Revenue', color: 'violet', x: 140, y: 90, w: 700, h: 500 });
-    expect(ctx.layout.panels[0]).toMatchObject({ x: before.x + 100, y: before.y + 50 });
+    await applyTool('update_group', { gid: 'group#1', title: 'Revenue', color: 'violet', x: 3, y: 2, w: 12, h: 9 }, ctx);
+    expect(ctx.layout.groups![0]).toMatchObject({ title: 'Revenue', color: 'violet', x: 3, y: 2, w: 12, h: 9 });
+    expect(ctx.layout.panels[0]).toMatchObject({ x: before.x + 3, y: before.y + 2 });
+    expect(ctx.layout.panels[1]).toMatchObject({ x: 10, y: 0 });
     expect((await applyTool('update_group', { gid: 'nope' }, ctx)).changed).toBe(false);
     expect((await applyTool('create_group', { title: '' }, ctx)).changed).toBe(false);
 
@@ -116,11 +123,12 @@ describe('groups, theme and summary', () => {
     expect(ctx.layout.preferences).toEqual({ theme: 'dark' });
     expect((await applyTool('set_theme', { theme: 'neon' }, ctx)).changed).toBe(false);
     await applyTool('add_panel', { plugin_id: 'spotcanvas.note', title: 'Hi' }, ctx);
-    const summary = (await applyTool('get_homepage', {}, ctx)).result as { panels: unknown[]; available_plugins: unknown[]; theme: string };
+    const summary = (await applyTool('get_homepage', {}, ctx)).result as { panels: unknown[]; available_plugins: unknown[]; theme: string; grid: unknown };
     expect(summary.theme).toBe('dark');
+    expect(summary.grid).toEqual({ columns: 24, rows: 16 });
     expect(summary.panels[0]).toMatchObject({ iid: 'spotcanvas.note#1', plugin_id: 'spotcanvas.note', title: 'Hi', group_id: null });
     expect(summary.available_plugins).toHaveLength(2);
-    expect(await applyTool('clear_homepage', {}, ctx)).toMatchObject({ changed: true, result: { removed: 1 } });
+    expect(await applyTool('clear_homepage', {}, ctx)).toMatchObject({ changed: true, result: { removed: 1 }, summary: 'Cleared the homepage' });
     expect((await applyTool('clear_homepage', {}, ctx)).changed).toBe(false);
   });
 });

@@ -23,14 +23,16 @@ describe('canvas store', () => {
     const a = s.addPanel(manifest);
     const b = s.addPanel(manifest);
     const panels = useCanvasStore.getState().panels;
-    expect(panels[a]).toMatchObject({ w: 240, h: 160, x: 70, y: 40, z: 1, data: null });
-    expect(panels[b]).toMatchObject({ x: 98, y: 68, z: 2 });
+    expect(panels[a]).toMatchObject({ w: 4, h: 3, x: 1, y: 1, z: 1, data: null });
+    expect(panels[b]).toMatchObject({ x: 2, y: 2, z: 2 });
     expect(a).not.toBe(b);
   });
 
   it('honours an explicit placement and data', () => {
-    const iid = useCanvasStore.getState().addPanel(manifest, { x: 5, y: 6, w: 300, h: 200, data: { n: 1 } });
-    expect(useCanvasStore.getState().panels[iid]).toMatchObject({ x: 5, y: 6, w: 300, h: 200, data: { n: 1 } });
+    const iid = useCanvasStore.getState().addPanel(manifest, { x: 5, y: 6, w: 6, h: 4, data: { n: 1 } });
+    expect(useCanvasStore.getState().panels[iid]).toMatchObject({ x: 5, y: 6, w: 6, h: 4, data: { n: 1 } });
+    const clamped = useCanvasStore.getState().addPanel(manifest, { x: 100, y: 100, w: 100, h: 100 });
+    expect(useCanvasStore.getState().panels[clamped]).toMatchObject({ x: 0, y: 0, w: 24, h: 16 });
   });
 
   it('removes a panel', () => {
@@ -42,8 +44,10 @@ describe('canvas store', () => {
   it('clamps moves to the canvas origin and sizes to the minimum', () => {
     const iid = useCanvasStore.getState().addPanel(manifest);
     useCanvasStore.getState().movePanel(iid, -50, -10);
-    useCanvasStore.getState().resizePanel(iid, 10, 10);
-    expect(useCanvasStore.getState().panels[iid]).toMatchObject({ x: 0, y: 0, w: 200, h: 120 });
+    useCanvasStore.getState().resizePanel(iid, 1, 1);
+    expect(useCanvasStore.getState().panels[iid]).toMatchObject({ x: 0, y: 0, w: 3, h: 2 });
+    useCanvasStore.getState().movePanel(iid, 99, 99);
+    expect(useCanvasStore.getState().panels[iid]).toMatchObject({ x: 21, y: 14 });
   });
 
   it('ignores moves and resizes for unknown panels', () => {
@@ -91,7 +95,7 @@ describe('canvas store', () => {
 
   it('hydrates and continues numbering after the highest restored id', () => {
     useCanvasStore.getState().hydrate([
-      { iid: 'test.widget#7', pluginId: 'test.widget', x: 1, y: 2, w: 200, h: 120, z: 4, data: null }
+      { iid: 'test.widget#7', pluginId: 'test.widget', x: 1, y: 2, w: 4, h: 3, z: 4, data: null }
     ]);
     const next = useCanvasStore.getState().addPanel(manifest);
     expect(next).toBe('test.widget#8');
@@ -116,9 +120,9 @@ describe('canvas store', () => {
   it('manages groups: create, resize floors, settle by containment, rename, hydrate with orphan cleanup', () => {
     const s = useCanvasStore.getState();
     const gid = s.addGroup({ x: -5, y: 10, w: 10, h: 10 });
-    expect(useCanvasStore.getState().groups[gid]).toMatchObject({ x: 0, y: 10, w: 240, h: 160, title: 'Group 1' });
-    s.resizeGroup(gid, 1000, 20);
-    expect(useCanvasStore.getState().groups[gid]).toMatchObject({ w: 1000, h: 160 });
+    expect(useCanvasStore.getState().groups[gid]).toMatchObject({ x: 0, y: 6, w: 10, h: 10, title: 'Group 1' });
+    s.resizeGroup(gid, 1, 1);
+    expect(useCanvasStore.getState().groups[gid]).toMatchObject({ w: 4, h: 3 });
     s.renameGroup(gid, '   ');
     expect(useCanvasStore.getState().groups[gid]!.title).toBe('Group 1');
     s.renameGroup(gid, ' Sales ');
@@ -126,8 +130,8 @@ describe('canvas store', () => {
     s.recolorGroup(gid, 'green');
     expect(useCanvasStore.getState().groups[gid]!.color).toBe('green');
 
-    const inside = s.addPanel(manifest, { x: 20, y: 20 });
-    const outside = s.addPanel(manifest, { x: 2000, y: 20 });
+    const inside = s.addPanel(manifest, { x: 0, y: 6, w: 3, h: 2 });
+    const outside = s.addPanel(manifest, { x: 20, y: 1 });
     s.settlePanel(inside);
     s.settlePanel(outside);
     expect(useCanvasStore.getState().panels[inside]!.groupId).toBe(gid);
@@ -140,8 +144,8 @@ describe('canvas store', () => {
     s.recolorGroup('missing', 'blue');
     s.settlePanel('missing');
 
-    s.hydrate([{ iid: 'test.widget#9', pluginId: 'test.widget', x: 0, y: 0, w: 200, h: 120, z: 1, data: null, groupId: 'group#7' }], {}, [
-      { gid: 'group#3', title: 'Kept', x: 0, y: 0, w: 300, h: 200, color: 'slate' }
+    s.hydrate([{ iid: 'test.widget#9', pluginId: 'test.widget', x: 0, y: 0, w: 4, h: 3, z: 1, data: null, groupId: 'group#7' }], {}, [
+      { gid: 'group#3', title: 'Kept', x: 0, y: 0, w: 8, h: 5, color: 'slate' }
     ]);
     expect(useCanvasStore.getState().panels['test.widget#9']!.groupId).toBeNull();
     expect(useCanvasStore.getState().addGroup()).toBe('group#4');

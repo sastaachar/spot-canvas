@@ -12,7 +12,7 @@ import { usePluginRegistry } from './registry';
 import { useCanvasStore, type PanelState } from './store';
 import { useToastStore } from './toasts';
 
-const panel: PanelState = { iid: 'a.b#1', pluginId: 'a.b', x: 1, y: 2, w: 200, h: 120, z: 1, data: { t: 'x' } };
+const panel: PanelState = { iid: 'a.b#1', pluginId: 'a.b', x: 1, y: 2, w: 4, h: 3, z: 1, data: { t: 'x' } };
 
 const memoryBackend = (): LayoutBackend & { value: string | null } => {
   const b = {
@@ -41,12 +41,26 @@ afterEach(() => {
 describe('parseLayout', () => {
   it('round-trips a serialised layout', () => {
     expect(parseLayout(serializeLayout({ [panel.iid]: panel }))).toEqual([panel]);
+    expect(JSON.parse(serializeLayout({})).version).toBe(2);
+  });
+
+  it('converts version-1 pixel layouts to grid sectors', () => {
+    const legacy = JSON.stringify({
+      version: 1,
+      panels: [{ iid: 'a.b#1', pluginId: 'a.b', x: 300, y: 225, w: 240, h: 160, z: 1, data: null }],
+      groups: [{ gid: 'group#1', title: 'G', x: 60, y: 56, w: 600, h: 400, color: 'blue' }]
+    });
+    const doc = parseLayoutDocument(legacy)!;
+    expect(doc.panels[0]).toMatchObject({ x: 5, y: 4, w: 4, h: 3 });
+    expect(doc.groups[0]).toMatchObject({ x: 1, y: 1, w: 10, h: 7 });
+    const far = parseLayoutDocument(JSON.stringify({ version: 1, panels: [{ iid: 'a.b#2', pluginId: 'a.b', x: 5000, y: 5000, w: 100, h: 50, z: 1, data: null }] }))!;
+    expect(far.panels[0]).toMatchObject({ x: 21, y: 14, w: 3, h: 2 });
   });
 
   it('rejects garbage, wrong versions and bad shapes', () => {
     expect(parseLayout(null)).toBeNull();
     expect(parseLayout('not json')).toBeNull();
-    expect(parseLayout(JSON.stringify({ version: 2, panels: [] }))).toBeNull();
+    expect(parseLayout(JSON.stringify({ version: 3, panels: [] }))).toBeNull();
     expect(parseLayout(JSON.stringify({ version: 1, panels: [{ iid: 1 }] }))).toBeNull();
   });
 });
@@ -106,10 +120,10 @@ describe('suites in the layout document', () => {
   const suites = { 'acme.suite': { url: 'https://p.example/acme.js', settings: { host: 'https://x' }, configured: true } };
 
   it('round-trips suite state and tolerates documents without it', () => {
-    const group = { gid: 'group#1', title: 'Sales', x: 0, y: 0, w: 400, h: 300, color: 'amber' as const };
+    const group = { gid: 'group#1', title: 'Sales', x: 0, y: 0, w: 8, h: 5, color: 'amber' as const };
     const doc = parseLayoutDocument(serializeLayout({ [panel.iid]: panel }, suites, { [group.gid]: group }, { theme: 'dark' }));
     expect(doc).toEqual({ panels: [panel], suites, groups: [group], preferences: { theme: 'dark' } });
-    expect(parseLayoutDocument(JSON.stringify({ version: 1, panels: [] }))).toEqual({
+    expect(parseLayoutDocument(JSON.stringify({ version: 2, panels: [] }))).toEqual({
       panels: [],
       suites: {},
       groups: [],
@@ -151,10 +165,10 @@ describe('suites in the layout document', () => {
 
 describe('applyLayoutDocument', () => {
   it('hydrates from an object or a JSON string and rejects garbage', async () => {
-    expect(await applyLayoutDocument({ version: 1, panels: [panel], groups: [], preferences: { theme: 'dark' } })).toBe(true);
+    expect(await applyLayoutDocument({ version: 2, panels: [panel], groups: [], preferences: { theme: 'dark' } })).toBe(true);
     expect(useCanvasStore.getState().panels[panel.iid]).toEqual(panel);
     expect(useCanvasStore.getState().preferences.theme).toBe('dark');
-    expect(await applyLayoutDocument(JSON.stringify({ version: 1, panels: [] }))).toBe(true);
+    expect(await applyLayoutDocument(JSON.stringify({ version: 2, panels: [] }))).toBe(true);
     expect(useCanvasStore.getState().panels).toEqual({});
     expect(await applyLayoutDocument({ nope: true })).toBe(false);
     expect(await applyLayoutDocument({ panels: [panel], groups: [], suites: {}, preferences: { theme: 'light' } })).toBe(true);

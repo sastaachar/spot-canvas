@@ -5,7 +5,7 @@ import { AgentError, runChat, type ChatRequest } from './chat.ts';
 const gateway = { url: 'https://llm.example/v1', key: 'secret-key', model: 'm' };
 const user = { id: 'u1', name: 'alice', displayName: 'Alice' };
 const layout: Layout = { version: 1, panels: [], suites: {}, groups: [], preferences: {} };
-const catalogue = [{ id: 'spotcanvas.note', name: 'Sticky note', kind: 'widget', size: [220, 160] as [number, number] }];
+const catalogue = [{ id: 'spotcanvas.note', name: 'Sticky note', kind: 'widget', size: [4, 3] as [number, number] }];
 const base: ChatRequest = { message: 'add a note', history: [{ role: 'user', content: 'earlier' }], catalogue, layout, user };
 
 const scripted = (...turns: Array<unknown | Response>) => {
@@ -29,7 +29,7 @@ describe('runChat', () => {
       { choices: [{ message: { content: '  Added a note.  ' } }] }
     );
     const out = await runChat(base, gateway, { fetchImpl });
-    expect(out).toMatchObject({ reply: 'Added a note.', changed: true, actions: ['add_panel'] });
+    expect(out).toMatchObject({ reply: 'Added a note.', changed: true, actions: [{ tool: 'add_panel', summary: 'Added Sticky note', changed: true }] });
     expect(out.layout.panels).toHaveLength(1);
     expect(layout.panels).toHaveLength(0);
 
@@ -40,6 +40,7 @@ describe('runChat', () => {
     expect(body.messages.map((m) => m.role)).toEqual(['system', 'user', 'user']);
     expect(body.messages[0]!.content).toContain('spotcanvas.note');
     expect(body.messages[0]!.content).toContain('Alice');
+    expect(body.messages[0]!.content).toContain('24 columns by 16 rows');
     expect(body.tools.length).toBeGreaterThan(5);
     const second = JSON.parse(String(calls[1]!.init.body)) as { messages: Array<{ role: string; tool_call_id?: string }> };
     expect(second.messages.at(-2)?.role).toBe('assistant');
@@ -52,7 +53,8 @@ describe('runChat', () => {
       { choices: [{ message: { content: '' } }] }
     );
     const out = await runChat(base, gateway, { fetchImpl });
-    expect(out).toMatchObject({ reply: 'Done. Take a look at the page.', changed: false, actions: [] });
+    expect(out).toMatchObject({ reply: 'Done. Take a look at the page.', changed: false });
+    expect(out.actions).toEqual([{ tool: 'add_panel', summary: 'add panel: arguments were not valid JSON', changed: false }]);
     const second = JSON.parse(String(calls[1]!.init.body)) as { messages: Array<{ role: string; content: string }> };
     expect(second.messages.at(-1)!.content).toContain('not valid JSON');
   });
@@ -98,9 +100,10 @@ describe('runChat with a cluster', () => {
         { status: 200 }
       );
     });
-    const out = await runChat({ ...base, cluster, catalogue: [...catalogue, { id: 'spotcanvas.embed', name: 'Embed', kind: 'embed', size: [420, 300] }] }, gateway, { fetchImpl, clusterFetch });
+    const out = await runChat({ ...base, cluster, catalogue: [...catalogue, { id: 'spotcanvas.embed', name: 'Embed', kind: 'embed', size: [7, 5] }] }, gateway, { fetchImpl, clusterFetch });
     expect(out.reply).toContain('Sales KPIs');
     expect(out.changed).toBe(false);
+    expect(out.actions).toEqual([{ tool: 'list_recent_activity', summary: 'Looked at your last 30 days on ThoughtSpot', changed: false }]);
     const body = JSON.parse(String(calls[0]!.init.body)) as { messages: Array<{ content: string }>; tools: Array<{ function: { name: string } }> };
     expect(body.tools.map((t) => t.function.name)).toContain('list_recent_activity');
     expect(body.messages[0]!.content).toContain('ts.example.com/#/pinboard/<id>');

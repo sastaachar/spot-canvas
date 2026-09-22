@@ -45,10 +45,10 @@ const user = { id: 'u1', name: 'alice', displayName: 'Alice', cluster: 'my.thoug
 const notePanel: PanelState = {
   iid: 'spotcanvas.note#1',
   pluginId: 'spotcanvas.note',
-  x: 10,
-  y: 20,
-  w: 240,
-  h: 160,
+  x: 1,
+  y: 1,
+  w: 4,
+  h: 3,
   z: 1,
   data: { text: 'saved earlier' }
 };
@@ -68,7 +68,7 @@ beforeEach(() => {
     drawerOpen: false,
     drawerTab: 'browse'
   });
-  useUiStore.setState({ profileOpen: false, renamingGid: null });
+  useUiStore.setState({ profileOpen: false, renamingGid: null, selectedIid: null, renamingIid: null, movingIid: null });
   document.documentElement.removeAttribute('data-theme');
   localStorage.clear();
   useToastStore.setState({ toasts: [] });
@@ -86,6 +86,11 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const shadowOf = (panel: HTMLElement) => panel.querySelector('.panel__body')!.shadowRoot!;
+const headerOf = (panel: HTMLElement) => panel.querySelector('header')!;
+const unlockMove = (panel: HTMLElement) => {
+  fireEvent.contextMenu(headerOf(panel));
+  fireEvent.click(screen.getByRole('menuitem', { name: /^Move/ }));
+};
 const canvas = () => screen.getByRole('main');
 const menuItem = (name: string | RegExp) => screen.getByRole('menuitem', { name });
 const openAddMenu = () => {
@@ -170,13 +175,16 @@ describe('canvas', () => {
     expect(screen.queryByRole('menu')).toBeNull();
 
     const panel = screen.getByRole('region', { name: 'Sticky note' });
+    expect(headerOf(panel).textContent).toBe('');
+    expect(headerOf(panel).className).toContain('is-blank');
     const [state] = Object.values(useCanvasStore.getState().panels);
-    expect(state).toMatchObject({ x: 300, y: 200 });
+    expect(state).toMatchObject({ x: 5, y: 4 });
+    expect(panel.style.left).toBe(`${(5 / 24) * 100}%`);
     expect(shadowOf(panel).querySelector('style[data-spot-canvas-plugin="spotcanvas.note"]')).toBeTruthy();
 
     await vi.waitFor(() => expect(parseLayout(memory.value)).toHaveLength(1));
 
-    const head = within(panel).getByText('Sticky note').closest('header')!;
+    const head = headerOf(panel);
     fireEvent.contextMenu(head, { clientX: 310, clientY: 210 });
     fireEvent.click(menuItem('Remove Sticky note'));
     expect(screen.queryByRole('region', { name: 'Sticky note' })).toBeNull();
@@ -209,7 +217,7 @@ describe('canvas', () => {
       useCanvasStore.getState().addPanel(getPlugin('spotcanvas.timer')!.manifest);
     });
     const note = screen.getByRole('region', { name: 'Sticky note' });
-    fireEvent.contextMenu(within(note).getByText('Sticky note').closest('header')!);
+    fireEvent.contextMenu(headerOf(note));
     fireEvent.click(menuItem('Bring to front'));
     expect(useCanvasStore.getState().panels[a]!.z).toBe(3);
 
@@ -245,15 +253,35 @@ describe('canvas', () => {
     });
 
     const panel = screen.getByRole('region', { name: 'Focus timer' });
-    const head = within(panel).getByText('Focus timer').closest('header')!;
+    const head = headerOf(panel);
     head.setPointerCapture = () => {};
+    // locked by default: dragging does nothing
+    fireEvent.pointerDown(head, { button: 0, clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(head, { clientX: 130, clientY: 150, pointerId: 1 });
+    fireEvent.pointerUp(head, { pointerId: 1 });
+    expect(useCanvasStore.getState().panels[iid]).toMatchObject({ x: 1, y: 1 });
+    expect(panel.querySelector('.panel__grip')).toBeNull();
+
+    unlockMove(panel);
+    expect(panel.className).toContain('is-moving');
+    expect(panel.querySelector('.panel__grip')).toBeTruthy();
     fireEvent.pointerDown(head, { button: 0, clientX: 100, clientY: 100, pointerId: 1 });
     fireEvent.pointerMove(head, { clientX: 130, clientY: 150, pointerId: 1 });
     fireEvent.pointerUp(head, { pointerId: 1 });
 
     const moved = useCanvasStore.getState().panels[iid]!;
-    expect(moved.x).toBe(100);
-    expect(moved.y).toBe(90);
+    expect(moved.x).toBe(2);
+    expect(moved.y).toBe(2);
+    // locked again after the drop
+    expect(panel.className).not.toContain('is-moving');
+    fireEvent.pointerDown(head, { button: 0, clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(head, { clientX: 400, clientY: 400, pointerId: 1 });
+    fireEvent.pointerUp(head, { pointerId: 1 });
+    expect(useCanvasStore.getState().panels[iid]).toMatchObject({ x: 2, y: 2 });
+
+    unlockMove(panel);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(panel.className).not.toContain('is-moving');
   });
 
   it('shows a plugin title override and toasts, and dismisses them', async () => {
@@ -265,7 +293,9 @@ describe('canvas', () => {
       useCanvasStore.getState().setPanelTitle(iid, 'Groceries');
       useToastStore.getState().push('Saved', 'success', iid);
     });
-    expect(screen.getByRole('region', { name: 'Groceries' })).toBeTruthy();
+    const titled = screen.getByRole('region', { name: 'Groceries' });
+    expect(headerOf(titled).textContent).toBe('Groceries');
+    expect(headerOf(titled).className).not.toContain('is-blank');
     const toast = screen.getByText('Saved').closest('.toast') as HTMLElement;
     expect(toast.className).toContain('toast--success');
     expect(within(toast).getByText('spotcanvas.note')).toBeTruthy();
@@ -354,7 +384,7 @@ describe('suites', () => {
     const panel = screen.getByRole('region', { name: 'Hello' });
     expect(screen.queryByRole('dialog')).toBeNull();
 
-    fireEvent.contextMenu(within(panel).getByText('Hello').closest('header')!);
+    fireEvent.contextMenu(headerOf(panel));
     fireEvent.click(menuItem(/Acme settings…/));
     const dialog = screen.getByRole('dialog', { name: 'Set up Acme' });
     expect((within(dialog).getByLabelText(/Server URL/) as HTMLInputElement).value).toBe('https://acme.example');
@@ -429,20 +459,22 @@ describe('groups', () => {
     fireEvent.change(rename, { target: { value: 'Sales' } });
     fireEvent.keyDown(rename, { key: 'Enter' });
     const group = screen.getByRole('region', { name: 'Group Sales' });
-    expect(useCanvasStore.getState().groups['group#1']).toMatchObject({ x: 100, y: 100, title: 'Sales', color: 'blue' });
+    expect(useCanvasStore.getState().groups['group#1']).toMatchObject({ x: 2, y: 2, w: 10, h: 7, title: 'Sales', color: 'blue' });
     expect(within(group).getByText('0 panels')).toBeTruthy();
 
     act(() => {
-      useCanvasStore.getState().addPanel(getPlugin('spotcanvas.note')!.manifest, { x: 700, y: 700 });
+      useCanvasStore.getState().addPanel(getPlugin('spotcanvas.note')!.manifest, { x: 20, y: 13 });
     });
     const panel = screen.getByRole('region', { name: 'Sticky note' });
-    const head = within(panel).getByText('Sticky note').closest('header')!;
-    dragHeader(head, [700, 700], [200, 200]);
+    const head = headerOf(panel);
+    unlockMove(panel);
+    dragHeader(head, [700, 700], [40, 60]);
     const [state] = Object.values(useCanvasStore.getState().panels);
-    expect(state).toMatchObject({ x: 200, y: 200, groupId: 'group#1' });
+    expect(state).toMatchObject({ x: 9, y: 2, groupId: 'group#1' });
     expect(within(group).getByText('1 panel')).toBeTruthy();
 
-    dragHeader(head, [200, 200], [900, 900]);
+    unlockMove(panel);
+    dragHeader(head, [40, 60], [900, 900]);
     expect(Object.values(useCanvasStore.getState().panels)[0]!.groupId).toBeNull();
     await vi.waitFor(() => expect(parseLayoutDocument(memory.value)?.groups).toHaveLength(1));
   });
@@ -452,21 +484,21 @@ describe('groups', () => {
     let iid = '';
     act(() => {
       const store = useCanvasStore.getState();
-      const gid = store.addGroup({ x: 50, y: 50, w: 400, h: 300 }, 'Ops');
-      iid = store.addPanel(getPlugin('spotcanvas.timer')!.manifest, { x: 80, y: 120 });
+      const gid = store.addGroup({ x: 1, y: 1, w: 10, h: 7 }, 'Ops');
+      iid = store.addPanel(getPlugin('spotcanvas.timer')!.manifest, { x: 2, y: 3 });
       store.assignPanel(iid, gid);
     });
     const group = screen.getByRole('region', { name: 'Group Ops' });
-    dragHeader(within(group).getByText('Ops').closest('header')!, [60, 60], [110, 90]);
-    expect(useCanvasStore.getState().groups['group#1']).toMatchObject({ x: 100, y: 80 });
-    expect(useCanvasStore.getState().panels[iid]).toMatchObject({ x: 130, y: 150 });
+    dragHeader(headerOf(group), [60, 60], [110, 90]);
+    expect(useCanvasStore.getState().groups['group#1']).toMatchObject({ x: 2, y: 2 });
+    expect(useCanvasStore.getState().panels[iid]).toMatchObject({ x: 3, y: 4 });
 
-    fireEvent.contextMenu(within(group).getByText('Ops').closest('header')!);
+    fireEvent.contextMenu(headerOf(group));
     fireEvent.click(menuItem('Colour'));
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Violet' }));
     expect(useCanvasStore.getState().groups['group#1']!.color).toBe('violet');
 
-    fireEvent.contextMenu(within(group).getByText('Ops').closest('header')!);
+    fireEvent.contextMenu(headerOf(group));
     fireEvent.click(menuItem(/^Ungroup/));
     expect(useCanvasStore.getState().groups).toEqual({});
     expect(useCanvasStore.getState().panels[iid]!.groupId).toBeNull();
@@ -476,7 +508,7 @@ describe('groups', () => {
       store.assignPanel(iid, store.addGroup({ x: 0, y: 0 }, 'Temp'));
     });
     const temp = screen.getByRole('region', { name: 'Group Temp' });
-    fireEvent.contextMenu(within(temp).getByText('Temp').closest('header')!);
+    fireEvent.contextMenu(headerOf(temp));
     fireEvent.click(menuItem(/Remove group and its panel/));
     expect(useCanvasStore.getState().panels).toEqual({});
     expect(screen.getByText('Your homepage is empty')).toBeTruthy();
@@ -490,10 +522,47 @@ describe('groups', () => {
       store.addPanel(getPlugin('spotcanvas.note')!.manifest, { x: 900, y: 900 });
     });
     const panel = screen.getByRole('region', { name: 'Sticky note' });
-    fireEvent.contextMenu(within(panel).getByText('Sticky note').closest('header')!);
+    fireEvent.contextMenu(headerOf(panel));
     fireEvent.click(menuItem('Group'));
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Finance' }));
     expect(Object.values(useCanvasStore.getState().panels)[0]!.groupId).toBe('group#1');
+  });
+});
+
+describe('selection and edit', () => {
+  it('selects a widget on click, clears on canvas click, and renames it through Edit', async () => {
+    await renderSignedIn();
+    act(() => {
+      useCanvasStore.getState().addPanel(getPlugin('spotcanvas.note')!.manifest);
+    });
+    const panel = screen.getByRole('region', { name: 'Sticky note' });
+    expect(panel.className).not.toContain('is-selected');
+    expect(within(panel).queryByRole('button')).toBeNull();
+
+    fireEvent.pointerDown(panel);
+    expect(panel.className).toContain('is-selected');
+    expect(panel.getAttribute('aria-selected')).toBe('true');
+    fireEvent.pointerDown(canvas());
+    expect(panel.className).not.toContain('is-selected');
+
+    fireEvent.contextMenu(headerOf(panel));
+    expect(panel.className).toContain('is-selected');
+    const items = screen.getAllByRole('menuitem').map((m) => m.textContent);
+    expect(items[0]).toContain('Edit');
+    fireEvent.click(menuItem(/^Edit/));
+
+    const input = screen.getByRole('textbox', { name: 'Widget name' }) as HTMLInputElement;
+    expect(input.value).toBe('Sticky note');
+    fireEvent.change(input, { target: { value: 'Groceries' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(screen.getByRole('region', { name: 'Groceries' })).toBeTruthy();
+    expect(headerOf(screen.getByRole('region', { name: 'Groceries' })).textContent).toBe('Groceries');
+
+    fireEvent.doubleClick(headerOf(screen.getByRole('region', { name: 'Groceries' })));
+    const again = screen.getByRole('textbox', { name: 'Widget name' });
+    fireEvent.change(again, { target: { value: '   ' } });
+    fireEvent.keyDown(again, { key: 'Escape' });
+    expect(screen.getByRole('region', { name: 'Groceries' })).toBeTruthy();
   });
 });
 
@@ -516,7 +585,7 @@ describe('profile, theme and chat', () => {
     usePluginRegistry.getState().registerSuite(formSuite());
     await renderSignedIn();
     act(() => {
-      useCanvasStore.getState().addPanel(getPlugin('spotcanvas.links')!.manifest);
+      useCanvasStore.getState().addPanel(getPlugin('spotcanvas.link')!.manifest);
     });
     fireEvent.contextMenu(canvas());
     fireEvent.click(menuItem('Profile & appearance…'));
@@ -532,11 +601,14 @@ describe('profile, theme and chat', () => {
     api.sendChat.mockResolvedValue({
       reply: 'Added a note in a Today group.',
       changed: true,
-      actions: ['create_group', 'add_panel'],
+      actions: [
+        { tool: 'create_group', summary: 'Created group Today', changed: true },
+        { tool: 'add_panel', summary: 'Added Sticky note in Today', changed: true }
+      ],
       layout: {
-        version: 1,
+        version: 2,
         panels: [{ ...notePanel, groupId: 'group#1', data: { text: 'Standup 9:30' } }],
-        groups: [{ gid: 'group#1', title: 'Today', x: 0, y: 0, w: 500, h: 300, color: 'amber' }],
+        groups: [{ gid: 'group#1', title: 'Today', x: 0, y: 0, w: 8, h: 5, color: 'amber' }],
         suites: {},
         preferences: { theme: 'system' }
       }
@@ -550,8 +622,8 @@ describe('profile, theme and chat', () => {
     const ghosts = await screen.findAllByTestId('ghost');
     expect(ghosts).toHaveLength(2);
     expect(ghosts[0]!.getAttribute('class')).toContain('ghost--group');
-    expect(ghosts[0]!.style.width).toBe('500px');
-    expect(ghosts[1]!.style.width).toBe('240px');
+    expect(ghosts[0]!.style.width).toBe(`${(8 / 24) * 100}%`);
+    expect(ghosts[1]!.style.width).toBe(`${(4 / 24) * 100}%`);
     expect(screen.queryByRole('region', { name: 'Sticky note' })).toBeNull();
 
     expect((await screen.findByRole('status', {}, { timeout: 3000 })).textContent).toContain('Added a note in a Today group.');
@@ -565,9 +637,14 @@ describe('profile, theme and chat', () => {
     expect(catalogue.map((c) => c.id)).toContain('spotcanvas.note');
     expect((input as HTMLInputElement).value).toBe('');
     expect(useChatStore.getState().turns).toHaveLength(2);
+    expect(useChatStore.getState().turns[1]?.actions).toHaveLength(2);
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss reply' }));
     expect(screen.queryByRole('status')).toBeNull();
+
+    fireEvent.focus(input);
+    const tools = screen.getByRole('list', { name: 'Tool calls' });
+    expect(within(tools).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['✎Created group Today', '✎Added Sticky note in Today']);
   });
 
   it('offers to build the homepage from ThoughtSpot activity when the user came from a cluster', async () => {
@@ -586,7 +663,12 @@ describe('profile, theme and chat', () => {
 
   it('expands into a conversation panel when the bar is focused and collapses on outside click or Escape', async () => {
     await renderSignedIn();
-    useChatStore.setState({ turns: [{ role: 'user', content: 'earlier question' }, { role: 'assistant', content: 'earlier answer' }] });
+    useChatStore.setState({
+      turns: [
+        { role: 'user', content: 'earlier question' },
+        { role: 'assistant', content: 'earlier answer', actions: [{ tool: 'get_homepage', summary: 'Read the homepage', changed: false }] }
+      ]
+    });
     const input = screen.getByRole('textbox', { name: 'Message Spotter' });
     const shell = input.closest('.chat')!;
     const log = () => screen.getByTestId('chat-log');
@@ -599,6 +681,7 @@ describe('profile, theme and chat', () => {
     expect(log().getAttribute('aria-hidden')).toBe('false');
     expect(within(log()).getByText('earlier question').className).toContain('chat__msg--user');
     expect(within(log()).getByText('earlier answer').className).toContain('chat__msg--assistant');
+    expect(within(log()).getByText('Read the homepage').className).not.toContain('is-change');
     expect(input.getAttribute('aria-expanded')).toBe('true');
 
     fireEvent.pointerDown(canvas());
@@ -640,20 +723,32 @@ describe('profile, theme and chat', () => {
     expect(useCanvasStore.getState().panels).toEqual({});
   });
 
-  it('adds a link inside the Links plugin', async () => {
+  it('a Link widget holds one link with name, address and optional description', async () => {
     await renderSignedIn();
     fireEvent.contextMenu(canvas());
-    addFromMenu('Links');
-    const panel = screen.getByRole('region', { name: 'Links' });
+    addFromMenu('Link');
+    const panel = screen.getByRole('region', { name: 'Link' });
     const shadow = shadowOf(panel);
-    fireEvent.input(shadow.querySelector('input[aria-label="Link label"]')!, { target: { value: 'Docs' } });
+    expect(shadow.querySelector('form')).toBeTruthy();
+    fireEvent.input(shadow.querySelector('input[aria-label="Link name"]')!, { target: { value: 'Docs' } });
     fireEvent.input(shadow.querySelector('input[aria-label="Link address"]')!, { target: { value: 'docs.thoughtspot.com' } });
+    fireEvent.input(shadow.querySelector('input[aria-label="Link description"]')!, { target: { value: 'Product documentation' } });
     fireEvent.submit(shadow.querySelector('form')!);
+
     const anchor = shadow.querySelector('a')!;
-    expect(anchor.textContent).toBe('Docs');
+    expect(anchor.textContent).toContain('Docs');
     expect(anchor.href).toBe('https://docs.thoughtspot.com/');
     expect(anchor.rel).toContain('noopener');
-    fireEvent.click(shadow.querySelector('button[aria-label="Remove Docs"]')!);
-    expect(shadow.querySelector('a')).toBeNull();
+    expect(shadow.querySelector('.tb-link__host')!.textContent).toBe('docs.thoughtspot.com');
+    expect(shadow.querySelector('.tb-link__desc')!.textContent).toBe('Product documentation');
+    const [state] = Object.values(useCanvasStore.getState().panels);
+    expect(state!.data).toEqual({ name: 'Docs', url: 'https://docs.thoughtspot.com/', description: 'Product documentation' });
+
+    fireEvent.contextMenu(headerOf(panel));
+    expect(screen.getAllByRole('menuitem').map((m) => m.textContent?.trim())).toEqual(expect.arrayContaining([expect.stringContaining('Edit link…'), expect.stringContaining('Open link')]));
+    fireEvent.click(menuItem(/Edit link…/));
+    expect(shadow.querySelector('form')).toBeTruthy();
+    fireEvent.click(shadow.querySelector('button[type="button"]')!);
+    expect(shadow.querySelector('a')).toBeTruthy();
   });
 });

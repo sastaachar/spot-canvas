@@ -73,8 +73,20 @@ export function ChatBar() {
           )}
           {expanded &&
             turns.map((turn, i) => (
-              <div key={`${i}-${turn.role}`} className={`chat__msg chat__msg--${turn.role}`}>
-                {turn.content}
+              <div key={`${i}-${turn.role}`} className={`chat__turn chat__turn--${turn.role}`}>
+                {turn.actions && turn.actions.length > 0 && (
+                  <ul className="chat__tools" aria-label="Tool calls">
+                    {turn.actions.map((a, j) => (
+                      <li key={`${j}-${a.tool}`} className={`chat__tool${a.changed ? ' is-change' : ''}`} title={a.tool}>
+                        <span className="chat__tool-mark" aria-hidden="true">
+                          {a.changed ? '✎' : '⌕'}
+                        </span>
+                        {a.summary}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className={`chat__msg chat__msg--${turn.role}`}>{turn.content}</div>
               </div>
             ))}
           {expanded && pending && (

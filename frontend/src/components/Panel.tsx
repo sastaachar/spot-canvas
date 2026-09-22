@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { usePanelCommands } from '../core/commands';
+import { cellSize, rectStyle } from '../core/grid';
 import { createPluginApi, EventBus } from '../core/host';
 import { useMenuStore } from '../core/menu';
 import { getPlugin } from '../core/registry';
 import { useCanvasStore, type PanelState } from '../core/store';
+import { useUiStore } from '../core/ui';
 import { settingsForPlugin } from '../core/suites';
 import { currentTheme, onThemeChange } from '../core/theme';
 import { useToastStore } from '../core/toasts';
 import pluginBaseCss from '../styles/plugin-base.css?inline';
 
-const HEADER_HEIGHT = 30;
-const DRAG_KEEP_VISIBLE = 60;
 
 const bus = new EventBus((iid, phase, error) => {
   console.warn(`[spot-canvas] plugin ${iid} threw in ${phase}`, error);
@@ -34,8 +34,13 @@ function mountRoot(host: HTMLElement): ShadowRoot {
 export function Panel({ panel }: Props) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
+  const selected = useUiStore((s) => s.selectedIid === panel.iid);
+  const renaming = useUiStore((s) => s.renamingIid === panel.iid);
+  const moving = useUiStore((s) => s.movingIid === panel.iid);
+  const [draft, setDraft] = useState(panel.title ?? '');
+  const renameRef = useRef<HTMLInputElement>(null);
   const plugin = getPlugin(panel.pluginId);
-  const { removePanel, movePanel, resizePanel, focusPanel } = useCanvasStore.getState();
+  const { movePanel, resizePanel, focusPanel } = useCanvasStore.getState();
 
   useEffect(() => {
     const body = bodyRef.current;
@@ -84,36 +89,52 @@ export function Panel({ panel }: Props) {
     };
   }, [panel.iid, plugin]);
 
+  useEffect(() => {
+    if (renaming) {
+      setDraft(panel.title ?? plugin?.manifest.name ?? '');
+      renameRef.current?.focus();
+      renameRef.current?.select();
+    }
+  }, [renaming, panel.title, plugin]);
+
+  const commitRename = () => {
+    useCanvasStore.getState().setPanelTitle(panel.iid, draft.trim() || null);
+    useUiStore.getState().setRenamingPanel(null);
+  };
+
+  useEffect(() => {
+    if (!moving) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') useUiStore.getState().setMoving(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [moving]);
+
+  // Widgets are locked in place. "Move" from the menu unlocks one drag or resize, then it locks again.
   const startDrag = (mode: DragMode) => (e: ReactPointerEvent<HTMLElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || renaming || !moving) return;
     if (mode === 'move' && (e.target as HTMLElement).closest('button')) return;
     e.preventDefault();
     focusPanel(panel.iid);
     const target = e.currentTarget;
     const canvas = target.closest('.canvas') as HTMLElement | null;
-    const bounds =
-      canvas && canvas.clientWidth > 0 ? { w: canvas.clientWidth, h: canvas.clientHeight } : { w: Infinity, h: Infinity };
+    const cell = cellSize(canvas);
     const start = { x: e.clientX, y: e.clientY, px: panel.x, py: panel.y, pw: panel.w, ph: panel.h };
     target.setPointerCapture(e.pointerId);
 
     const onMove = (ev: PointerEvent) => {
-      const dx = ev.clientX - start.x;
-      const dy = ev.clientY - start.y;
-      if (mode === 'move') {
-        movePanel(
-          panel.iid,
-          Math.min(bounds.w - DRAG_KEEP_VISIBLE, start.px + dx),
-          Math.min(bounds.h - HEADER_HEIGHT, start.py + dy)
-        );
-      } else {
-        resizePanel(panel.iid, Math.min(bounds.w - start.px, start.pw + dx), Math.min(bounds.h - start.py, start.ph + dy));
-      }
+      const dx = (ev.clientX - start.x) / cell.w;
+      const dy = (ev.clientY - start.y) / cell.h;
+      if (mode === 'move') movePanel(panel.iid, start.px + dx, start.py + dy);
+      else resizePanel(panel.iid, start.pw + dx, start.ph + dy);
     };
     const onUp = () => {
       target.removeEventListener('pointermove', onMove);
       target.removeEventListener('pointerup', onUp);
       target.removeEventListener('pointercancel', onUp);
       if (mode === 'move') useCanvasStore.getState().settlePanel(panel.iid);
+      useUiStore.getState().setMoving(null);
     };
     target.addEventListener('pointermove', onMove);
     target.addEventListener('pointerup', onUp);
@@ -124,6 +145,7 @@ export function Panel({ panel }: Props) {
 
   const openPanelMenu = (x: number, y: number) => {
     focusPanel(panel.iid);
+    useUiStore.getState().select(panel.iid);
     useMenuStore.getState().openMenu({ kind: 'panel', iid: panel.iid }, x, y);
   };
 
@@ -134,36 +156,36 @@ export function Panel({ panel }: Props) {
     openPanelMenu(e.clientX, e.clientY);
   };
 
-  const onMenuButton = (e: ReactMouseEvent<HTMLButtonElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    openPanelMenu(rect.left, rect.bottom + 4);
-  };
-
   return (
     <section
-      className={`panel${panel.groupId ? ' is-grouped' : ''}`}
+      className={`panel${panel.groupId ? ' is-grouped' : ''}${selected ? ' is-selected' : ''}${moving ? ' is-moving' : ''}`}
       aria-label={name}
-      style={{ left: panel.x, top: panel.y, width: panel.w, height: panel.h, zIndex: panel.z }}
-      onPointerDown={() => focusPanel(panel.iid)}
+      aria-selected={selected}
+      style={{ ...rectStyle(panel), zIndex: panel.z }}
+      onPointerDown={() => {
+        focusPanel(panel.iid);
+        useUiStore.getState().select(panel.iid);
+      }}
       onContextMenu={onContextMenu}
     >
-      <header className="panel__head" onPointerDown={startDrag('move')}>
-        <span className="panel__kind">{plugin?.manifest.kind ?? 'missing'}</span>
-        <span className="panel__name">{name}</span>
-        <button
-          type="button"
-          className="panel__menu-btn"
-          aria-label={`${name} options`}
-          aria-haspopup="menu"
-          title="Options"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={onMenuButton}
-        >
-          ⋯
-        </button>
-        <button type="button" aria-label={`Close ${name}`} onClick={() => removePanel(panel.iid)}>
-          ✕
-        </button>
+      <header className={`panel__head${panel.title || renaming ? '' : ' is-blank'}`} onPointerDown={startDrag('move')} onDoubleClick={() => useUiStore.getState().setRenamingPanel(panel.iid)}>
+        {renaming ? (
+          <input
+            ref={renameRef}
+            className="panel__rename"
+            aria-label="Widget name"
+            value={draft}
+            maxLength={60}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitRename();
+              if (e.key === 'Escape') useUiStore.getState().setRenamingPanel(null);
+            }}
+          />
+        ) : (
+          panel.title && <span className="panel__name">{panel.title}</span>
+        )}
       </header>
       <div className="panel__body" ref={bodyRef} hidden={failed || !plugin} />
       {(failed || !plugin) && (
@@ -171,7 +193,7 @@ export function Panel({ panel }: Props) {
           {plugin ? 'This plugin failed to start. Remove it and add it again.' : 'This plugin is no longer installed.'}
         </p>
       )}
-      <div className="panel__grip" aria-hidden="true" onPointerDown={startDrag('resize')} />
+      {moving && <div className="panel__grip" aria-hidden="true" onPointerDown={startDrag('resize')} />}
     </section>
   );
 }

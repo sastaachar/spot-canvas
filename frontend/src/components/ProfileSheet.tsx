@@ -127,7 +127,7 @@ export function ProfileSheet() {
                       {suite.plugins.map((p) => (
                         <li key={p.manifest.id}>
                           <span>{p.manifest.name}</span>
-                          <span className="sheet__meta">{inUse(p.manifest.id) > 0 ? `${inUse(p.manifest.id)} on page` : p.manifest.kind}</span>
+                          <span className="sheet__meta">{inUse(p.manifest.id) > 0 ? `${inUse(p.manifest.id)} on page` : ''}</span>
                         </li>
                       ))}
                     </ul>
@@ -144,7 +144,7 @@ export function ProfileSheet() {
             {standalone.map((p) => (
               <li key={p.manifest.id} className="sheet__row">
                 <span>{p.manifest.name}</span>
-                <span className="sheet__meta">{inUse(p.manifest.id) > 0 ? `${inUse(p.manifest.id)} on page` : p.manifest.kind}</span>
+                <span className="sheet__meta">{inUse(p.manifest.id) > 0 ? `${inUse(p.manifest.id)} on page` : ''}</span>
               </li>
             ))}
           </ul>

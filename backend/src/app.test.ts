@@ -326,7 +326,7 @@ describe('layouts', () => {
     const alice = (await login(ALICE)).cookie;
     const bad = await api(
       '/api/layout',
-      { method: 'PUT', headers: { ...json, ...csrf }, body: JSON.stringify({ version: 2, panels: [] }) },
+      { method: 'PUT', headers: { ...json, ...csrf }, body: JSON.stringify({ version: 3, panels: [] }) },
       alice
     );
     expect(bad.status).toBe(400);
@@ -391,7 +391,7 @@ describe('rate limiting', () => {
 });
 
 describe('chat', () => {
-  const catalogue = [{ id: 'spotcanvas.note', name: 'Sticky note', kind: 'widget', size: [220, 160] }];
+  const catalogue = [{ id: 'spotcanvas.note', name: 'Sticky note', kind: 'widget', size: [4, 3] }];
   const chat = (cookie: string, body: unknown) =>
     api('/api/chat', { method: 'POST', headers: { ...json, ...csrf }, body: JSON.stringify(body) }, cookie);
 
@@ -423,10 +423,10 @@ describe('chat', () => {
     );
     const res = await chat(alice, { message: 'add a note for standup', catalogue });
     expect(res.status).toBe(200);
-    const out = (await res.json()) as { reply: string; changed: boolean; actions: string[]; layout: { panels: unknown[]; groups: unknown[] } };
+    const out = (await res.json()) as { reply: string; changed: boolean; actions: Array<{ tool: string }>; layout: { panels: unknown[]; groups: unknown[] } };
     expect(out.reply).toBe('Added a Today group with a note.');
     expect(out.changed).toBe(true);
-    expect(out.actions).toEqual(['create_group', 'add_panel']);
+    expect(out.actions.map((a) => a.tool)).toEqual(['create_group', 'add_panel']);
     expect(out.layout.groups).toHaveLength(1);
     expect(out.layout.panels[0]).toMatchObject({ pluginId: 'spotcanvas.note', groupId: 'group#1', data: { text: 'Standup 9:30' } });
 
@@ -456,7 +456,7 @@ describe('chat', () => {
       }
     );
     const out = await chat(cookie, { message: 'what do I use?' });
-    expect(await out.json()).toEqual({ reply: 'You use Ops board most.', changed: false, actions: [] });
+    expect(await out.json()).toMatchObject({ reply: 'You use Ops board most.', changed: false, actions: [{ tool: 'list_recent_activity', changed: false }] });
   });
 
   it('answers without changes when the model only talks, and validates the body', async () => {

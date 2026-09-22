@@ -39,7 +39,7 @@ const ChatSchema = z.object({
   catalogue: z.array(CataloguePluginSchema).max(MAX_CATALOGUE).default([])
 });
 
-const EMPTY_LAYOUT: Layout = { version: 1, panels: [], suites: {}, groups: [], preferences: {} };
+const EMPTY_LAYOUT: Layout = { version: 2, panels: [], suites: {}, groups: [], preferences: {} };
 
 export type Logger = (message: string, error?: unknown) => void;
 

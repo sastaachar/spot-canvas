@@ -3,7 +3,7 @@ import type { ClusterSession, FetchLike } from '../auth.ts';
 import type { GatewayConfig, Identity } from '../config.ts';
 import type { Layout } from '../layouts.ts';
 import { ThoughtSpotClient } from './thoughtspot.ts';
-import { applyTool, toolsFor, type CataloguePlugin, type ToolContext, type ToolDefinition, type ToolOutcome } from './tools.ts';
+import { applyTool, GRID, toolsFor, type CataloguePlugin, type ToolContext, type ToolDefinition, type ToolOutcome } from './tools.ts';
 
 export class AgentError extends Error {
   override name = 'AgentError';
@@ -23,11 +23,17 @@ export interface ChatRequest {
   cluster?: ClusterSession | null;
 }
 
+export interface ChatAction {
+  tool: string;
+  summary: string;
+  changed: boolean;
+}
+
 export interface ChatResult {
   reply: string;
   layout: Layout;
   changed: boolean;
-  actions: string[];
+  actions: ChatAction[];
 }
 
 const MAX_ROUNDS = 8;
@@ -70,9 +76,10 @@ function clusterSection(cluster: ClusterSession | null | undefined, catalogue: C
   const hasEmbed = catalogue.some((c) => c.id === 'spotcanvas.embed');
   return `The user is signed in to ThoughtSpot at ${cluster.host}. Use list_recent_activity (their own last-opened liveboards and answers), list_favorites and search_thoughtspot to find their content.
 To put ThoughtSpot content on the page:
-${hasChart ? `- an answer → add_panel spotcanvas.thoughtspot-chart with data { "answerId": "<id>", "tsHost": "${cluster.host}" } and title = the answer name (size about 520x380).` : '- the chart plugin is not installed, so answers cannot be shown as charts.'}
-${hasEmbed ? `- a liveboard → add_panel spotcanvas.embed with data { "url": "${cluster.host}/#/pinboard/<id>" } and title = the liveboard name (size about 640x420).` : '- the embed plugin is not installed, so liveboards cannot be shown.'}
-When asked to build or fill a homepage from activity: call list_recent_activity (90 days) and list_favorites, pick the 4–8 most relevant objects (favourites and most recently or most often opened first), group them under short titles such as "Favourites" and "Recently used", and add a note summarising what you placed. Do not add the same object twice.`;
+${hasChart ? `- an answer → add_panel spotcanvas.thoughtspot-chart with data { "answerId": "<id>", "tsHost": "${cluster.host}" } and title = the answer name (about 8x6).` : '- the chart plugin is not installed, so answers cannot be shown as charts.'}
+${hasEmbed ? `- a liveboard → add_panel spotcanvas.embed with data { "url": "${cluster.host}/#/pinboard/<id>" } and title = the liveboard name (about 10x7).` : '- the embed plugin is not installed, so liveboards cannot be shown.'}
+When asked to build or fill a homepage from activity: call list_recent_activity (90 days) and list_favorites, pick the 4–8 most relevant objects (favourites and most recently or most often opened first), group them under short titles such as "Favourites" and "Recently used", and add a note summarising what you placed. Do not add the same object twice.
+Every component on the page is a widget; groups are named rectangles that hold widgets. When the user asks for "links", make one link widget per link.`;
 }
 
 function systemPrompt(user: Identity, catalogue: CataloguePlugin[], cluster: ClusterSession | null | undefined): string {
@@ -80,14 +87,14 @@ function systemPrompt(user: Identity, catalogue: CataloguePlugin[], cluster: Clu
   return `You are Spotter, the assistant inside Spot Canvas: a personal ThoughtSpot homepage where ${user.displayName} arranges plugin panels on a canvas and groups related panels inside titled rectangles.
 
 You change the page only through the tools. Every tool call is applied immediately and saved.
-The visible canvas is about 1400x860 px; panels are absolutely positioned (x,y from the top-left) and must not overlap. When you omit x/y the tool auto-places the panel, which is usually best. Put related panels in one group: create the group first, then add panels with group_id.
+The canvas is a grid of ${GRID.cols} columns by ${GRID.rows} rows; x is the column and y the row from the top-left, w and h are spans in columns and rows. A typical panel is 4x3, a group 10x7. Panels must not overlap. When you omit x/y the tool auto-places the panel, which is usually best. Put related panels in one group: create the group first, then add panels with group_id.
 
 Plugins available right now:
 ${plugins || '- (none)'}
 
 Data shapes for first-party plugins (pass as "data"):
 - spotcanvas.note: { "text": string }  — a note the user can edit.
-- spotcanvas.links: { "items": [{ "label": string, "url": string }] } — http(s) links.
+- spotcanvas.link: { "name": string, "url": string, "description"?: string } — ONE link per widget (small, about 4x2). For several links add several link widgets, usually inside a group.
 - spotcanvas.workflow: { "current": number, "steps": [{ "title": string, "detail": string }] } — a step-by-step checklist.
 - spotcanvas.embed: { "url": string } — a web page in an iframe.
 - spotcanvas.thoughtspot-chart: { "answerId": string, "tsHost": string } — a saved ThoughtSpot Answer's chart.
@@ -101,6 +108,12 @@ Rules:
 - Never invent plugin ids. If nothing fits, say so briefly.
 - Do not remove or clear things the user did not ask to remove.
 - Reply in one or two short sentences describing what changed. No markdown headings, no lists of tool calls.`;
+}
+
+function humanise(tool: string, outcome: ToolOutcome): string {
+  const error = (outcome.result as { error?: string } | null)?.error;
+  const name = tool.replace(/_/g, ' ');
+  return error ? `${name}: ${error}` : name;
 }
 
 async function complete(
@@ -150,7 +163,7 @@ export async function runChat(req: ChatRequest, gateway: GatewayConfig, options:
     thoughtSpot: req.cluster ? new ThoughtSpotClient(req.cluster, options.clusterFetch ?? fetch) : null
   };
   const tools = toolsFor(ctx);
-  const actions: string[] = [];
+  const actions: ChatAction[] = [];
   let changed = false;
 
   const messages: GatewayMessage[] = [
@@ -177,10 +190,8 @@ export async function runChat(req: ChatRequest, gateway: GatewayConfig, options:
         parsedOk = false;
       }
       outcome = parsedOk ? await applyTool(call.function.name, args, ctx) : { result: { error: 'arguments were not valid JSON' }, changed: false };
-      if (outcome.changed) {
-        changed = true;
-        actions.push(call.function.name);
-      }
+      if (outcome.changed) changed = true;
+      actions.push({ tool: call.function.name, summary: outcome.summary ?? humanise(call.function.name, outcome), changed: outcome.changed });
       messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(outcome.result) });
     }
   }

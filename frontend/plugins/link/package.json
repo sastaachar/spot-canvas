@@ -1,5 +1,5 @@
 {
-  "name": "@spot-canvas/plugin-links",
+  "name": "@spot-canvas/plugin-link",
   "version": "0.1.0",
   "private": true,
   "type": "module",

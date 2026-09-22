@@ -1,9 +1,10 @@
-import type { MouseEvent } from 'react';
+import type { MouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useMenuStore } from '../core/menu';
 import { selectOrderedGroups, selectOrderedPanels, useCanvasStore } from '../core/store';
 import { useChatStore } from '../core/chat';
 import { useSession } from '../core/session';
+import { useUiStore } from '../core/ui';
 import { Ghosts } from './Ghosts';
 import { Group } from './Group';
 import { Panel } from './Panel';
@@ -29,8 +30,12 @@ export function Canvas() {
 
   const members = (gid: string) => panels.filter((p) => p.groupId === gid).length;
 
+  const onPointerDown = (e: ReactPointerEvent) => {
+    if (e.target === e.currentTarget || (e.target as HTMLElement).closest('.canvas__empty')) useUiStore.getState().select(null);
+  };
+
   return (
-    <main className="canvas" id="canvas" onContextMenu={onContextMenu}>
+    <main className="canvas" id="canvas" onContextMenu={onContextMenu} onPointerDown={onPointerDown}>
       {panels.length === 0 && groups.length === 0 && (
         <div className="canvas__empty">
           <div className="canvas__empty-badge" aria-hidden="true">

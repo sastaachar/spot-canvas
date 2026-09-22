@@ -2,6 +2,7 @@ import type { SpotCanvasPlugin, SpotCanvasSuite } from '@spot-canvas/sdk';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { usePanelCommands } from '../core/commands';
+import { pointToUnits } from '../core/grid';
 import { useMenuStore, type MenuTarget } from '../core/menu';
 import { getPlugin, suiteForPlugin, usePluginRegistry } from '../core/registry';
 import { GROUP_COLORS, useCanvasStore, type GroupColor } from '../core/store';
@@ -36,10 +37,7 @@ type Entry = Action | Submenu | Heading | 'separator';
 const VIEWPORT_MARGIN = 8;
 const COLOR_LABEL: Record<GroupColor, string> = { blue: 'Blue', amber: 'Amber', green: 'Green', violet: 'Violet', slate: 'Slate' };
 
-function canvasPoint(x: number, y: number): { x: number; y: number } {
-  const rect = document.getElementById('canvas')?.getBoundingClientRect();
-  return rect ? { x: x - rect.left, y: y - rect.top } : { x, y };
-}
+const canvasPoint = (x: number, y: number) => pointToUnits(x, y, document.getElementById('canvas'));
 
 function clampInto(el: HTMLElement, x: number, y: number): void {
   const rect = el.getBoundingClientRect();
@@ -168,7 +166,10 @@ export function ContextMenu() {
       onSelect: c.onSelect
     }));
     return [
-      ...(commandEntries.length > 0 ? [...commandEntries, 'separator' as const] : []),
+      { kind: 'action', label: 'Edit', icon: '✎', hint: 'name', onSelect: () => useUiStore.getState().setRenamingPanel(t.iid) },
+      { kind: 'action', label: 'Move', icon: '✥', hint: 'drag, then it locks', onSelect: () => useUiStore.getState().setMoving(t.iid) },
+      ...(commandEntries.length > 0 ? [...commandEntries] : []),
+      'separator',
       { kind: 'action', label: 'Bring to front', icon: '⤒', onSelect: () => focusPanel(t.iid) },
       ...(Object.keys(groups).length > 0 ? [{ kind: 'submenu', label: 'Group', icon: '▧', items: groupItems } as Submenu] : []),
       ...(suite && hasSetup(suite) ? [setupEntry(suite)] : []),

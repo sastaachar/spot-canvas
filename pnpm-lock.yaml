@@ -32,9 +32,9 @@ importers:
       '@spot-canvas/plugin-embed':
         specifier: workspace:*
         version: link:plugins/embed
-      '@spot-canvas/plugin-links':
+      '@spot-canvas/plugin-link':
         specifier: workspace:*
-        version: link:plugins/links
+        version: link:plugins/link
       '@spot-canvas/plugin-note':
         specifier: workspace:*
         version: link:plugins/note
@@ -110,7 +110,7 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
-  frontend/plugins/links:
+  frontend/plugins/link:
     dependencies:
       '@spot-canvas/sdk':
         specifier: workspace:*

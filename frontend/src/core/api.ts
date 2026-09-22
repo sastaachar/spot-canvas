@@ -87,10 +87,16 @@ export interface ChatCataloguePlugin {
   suiteId?: string | null;
 }
 
+export interface ChatAction {
+  tool: string;
+  summary: string;
+  changed: boolean;
+}
+
 export interface ChatReply {
   reply: string;
   changed: boolean;
-  actions: string[];
+  actions: ChatAction[];
   layout?: unknown;
 }
 

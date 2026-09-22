@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { ApiError, sendChat, type ChatCataloguePlugin, type ChatTurn } from './api';
+import { ApiError, sendChat, type ChatAction, type ChatCataloguePlugin, type ChatTurn } from './api';
 import { ghostDuration, newRects, reducedMotion, useGhostStore } from './ghosts';
+import { pxSizeToUnits } from './grid';
 import { applyLayoutDocument, parseLayoutDocument } from './persistence';
 import { usePluginRegistry } from './registry';
 import { useToastStore } from './toasts';
@@ -8,8 +9,12 @@ import { useToastStore } from './toasts';
 const MAX_TURNS = 12;
 const UNREACHABLE = 'Spotter is not reachable right now.';
 
+export interface TranscriptTurn extends ChatTurn {
+  actions?: ChatAction[];
+}
+
 interface ChatState {
-  turns: ChatTurn[];
+  turns: TranscriptTurn[];
   pending: boolean;
   lastReply: string | null;
   error: string | null;
@@ -23,7 +28,7 @@ export function catalogue(): ChatCataloguePlugin[] {
     id: p.manifest.id,
     name: p.manifest.name,
     kind: p.manifest.kind,
-    size: p.manifest.size,
+    size: [pxSizeToUnits(p.manifest.size).w, pxSizeToUnits(p.manifest.size).h] as [number, number],
     suiteId: suiteOf[p.manifest.id] ?? null
   }));
 }
@@ -59,12 +64,13 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     const turns = [...get().turns, { role: 'user' as const, content: text }].slice(-MAX_TURNS);
     set({ turns, pending: true, error: null, lastReply: null });
     try {
-      const result = await sendChat(text, turns.slice(0, -1), catalogue());
+      const history = turns.slice(0, -1).map(({ role, content }) => ({ role, content }));
+      const result = await sendChat(text, history, catalogue());
       if (result.changed && result.layout !== undefined) {
         await revealThenApply(result.layout);
       }
       set({
-        turns: [...turns, { role: 'assistant' as const, content: result.reply }].slice(-MAX_TURNS),
+        turns: [...turns, { role: 'assistant' as const, content: result.reply, actions: result.actions ?? [] }].slice(-MAX_TURNS),
         pending: false,
         lastReply: result.reply
       });

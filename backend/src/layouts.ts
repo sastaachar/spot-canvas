@@ -62,7 +62,7 @@ export const SuiteStateSchema = z.object({
 });
 
 export const LayoutSchema = z.object({
-  version: z.literal(1),
+  version: z.union([z.literal(1), z.literal(2)]),
   panels: z.array(PanelSchema).max(MAX_PANELS),
   suites: z
     .record(z.string().min(1).max(MAX_ID_LENGTH), SuiteStateSchema)

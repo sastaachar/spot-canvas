@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { clampInt, GRID, legacyPxToUnits, MIN_GROUP, MIN_PANEL } from './grid';
 import { usePluginRegistry } from './registry';
 import {
   DEFAULT_PREFERENCES,
@@ -46,8 +47,10 @@ const SuiteStateSchema = z.object({
   configured: z.boolean()
 });
 
+export const LAYOUT_VERSION = 2;
+
 const LayoutSchema = z.object({
-  version: z.literal(1),
+  version: z.union([z.literal(1), z.literal(LAYOUT_VERSION)]),
   panels: z.array(PanelSchema),
   suites: z.record(z.string(), SuiteStateSchema).optional(),
   groups: z.array(GroupSchema).optional(),
@@ -66,15 +69,29 @@ export interface LayoutBackend {
   write(json: string): Promise<void>;
 }
 
+// Version 1 stored pixels on a fixed canvas; version 2 stores grid sectors.
+function toGridPanel(p: PanelState): PanelState {
+  const w = clampInt(legacyPxToUnits.x(p.w), MIN_PANEL.w, GRID.cols);
+  const h = clampInt(legacyPxToUnits.y(p.h), MIN_PANEL.h, GRID.rows);
+  return { ...p, w, h, x: clampInt(legacyPxToUnits.x(p.x), 0, GRID.cols - w), y: clampInt(legacyPxToUnits.y(p.y), 0, GRID.rows - h) };
+}
+
+function toGridGroup(g: GroupState): GroupState {
+  const w = clampInt(legacyPxToUnits.x(g.w), MIN_GROUP.w, GRID.cols);
+  const h = clampInt(legacyPxToUnits.y(g.h), MIN_GROUP.h, GRID.rows);
+  return { ...g, w, h, x: clampInt(legacyPxToUnits.x(g.x), 0, GRID.cols - w), y: clampInt(legacyPxToUnits.y(g.y), 0, GRID.rows - h) };
+}
+
 export function parseLayoutDocument(json: string | null): LayoutDocument | null {
   if (!json) return null;
   try {
     const result = LayoutSchema.safeParse(JSON.parse(json));
     if (!result.success) return null;
+    const legacy = result.data.version === 1;
     return {
-      panels: result.data.panels as PanelState[],
+      panels: (result.data.panels as PanelState[]).map((p) => (legacy ? toGridPanel(p) : p)),
       suites: result.data.suites ?? {},
-      groups: result.data.groups ?? [],
+      groups: (result.data.groups ?? []).map((g) => (legacy ? toGridGroup(g) : g)),
       preferences: { ...DEFAULT_PREFERENCES, ...result.data.preferences }
     };
   } catch {
@@ -92,7 +109,7 @@ export function serializeLayout(
   groups: Record<string, GroupState> = {},
   preferences: Preferences = DEFAULT_PREFERENCES
 ): string {
-  return JSON.stringify({ version: 1, panels: Object.values(panels), suites, groups: Object.values(groups), preferences });
+  return JSON.stringify({ version: LAYOUT_VERSION, panels: Object.values(panels), suites, groups: Object.values(groups), preferences });
 }
 
 async function loadSuiteModules(suites: Record<string, SuiteState>): Promise<void> {

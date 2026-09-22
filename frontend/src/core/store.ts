@@ -1,6 +1,6 @@
 import type { PluginManifest, SuiteSettings } from '@spot-canvas/sdk';
-import { MIN_PANEL_HEIGHT, MIN_PANEL_WIDTH } from '@spot-canvas/sdk';
 import { create } from 'zustand';
+import { clampInt, GRID, MIN_GROUP, MIN_PANEL, pxSizeToUnits } from './grid';
 
 export interface PanelState {
   iid: string;
@@ -35,9 +35,7 @@ export interface Preferences {
 }
 
 export const DEFAULT_PREFERENCES: Preferences = { theme: 'system' };
-export const MIN_GROUP_WIDTH = 240;
-export const MIN_GROUP_HEIGHT = 160;
-const DEFAULT_GROUP_SIZE = { w: 520, h: 340 };
+const DEFAULT_GROUP_SIZE = { w: 10, h: 7 };
 const MAX_GROUP_TITLE = 60;
 
 export type DrawerTab = 'browse' | 'developer';
@@ -88,8 +86,8 @@ interface CanvasState {
   setDrawer(open: boolean, tab?: DrawerTab): void;
 }
 
-const ORIGIN = { x: 70, y: 40 };
-const STAGGER = 28;
+const ORIGIN = { x: 1, y: 1 };
+const STAGGER = 1;
 
 export const useCanvasStore = create<CanvasState>()((set, get) => ({
   panels: {},
@@ -106,13 +104,16 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
     const { seq, nextZ, panels } = get();
     const iid = `${manifest.id}#${seq + 1}`;
     const count = Object.keys(panels).length;
+    const natural = pxSizeToUnits(manifest.size);
+    const w = clampInt(at.w ?? natural.w, MIN_PANEL.w, GRID.cols);
+    const h = clampInt(at.h ?? natural.h, MIN_PANEL.h, GRID.rows);
     const panel: PanelState = {
       iid,
       pluginId: manifest.id,
-      x: at.x ?? ORIGIN.x + count * STAGGER,
-      y: at.y ?? ORIGIN.y + count * STAGGER,
-      w: at.w ?? manifest.size[0],
-      h: at.h ?? manifest.size[1],
+      x: clampInt(at.x ?? ORIGIN.x + count * STAGGER, 0, GRID.cols - w),
+      y: clampInt(at.y ?? ORIGIN.y + count * STAGGER, 0, GRID.rows - h),
+      w,
+      h,
       z: nextZ,
       data: at.data ?? null
     };
@@ -128,18 +129,19 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
   movePanel(iid, x, y) {
     const panel = get().panels[iid];
     if (!panel) return;
-    set({ panels: { ...get().panels, [iid]: { ...panel, x: Math.max(0, x), y: Math.max(0, y) } } });
+    const nx = clampInt(x, 0, GRID.cols - panel.w);
+    const ny = clampInt(y, 0, GRID.rows - panel.h);
+    if (nx === panel.x && ny === panel.y) return;
+    set({ panels: { ...get().panels, [iid]: { ...panel, x: nx, y: ny } } });
   },
 
   resizePanel(iid, w, h) {
     const panel = get().panels[iid];
     if (!panel) return;
-    set({
-      panels: {
-        ...get().panels,
-        [iid]: { ...panel, w: Math.max(MIN_PANEL_WIDTH, w), h: Math.max(MIN_PANEL_HEIGHT, h) }
-      }
-    });
+    const nw = clampInt(w, MIN_PANEL.w, GRID.cols - panel.x);
+    const nh = clampInt(h, MIN_PANEL.h, GRID.rows - panel.y);
+    if (nw === panel.w && nh === panel.h) return;
+    set({ panels: { ...get().panels, [iid]: { ...panel, w: nw, h: nh } } });
   },
 
   focusPanel(iid) {
@@ -169,13 +171,15 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
     const { gseq, groups } = get();
     const gid = `group#${gseq + 1}`;
     const count = Object.keys(groups).length;
+    const w = clampInt(at.w ?? DEFAULT_GROUP_SIZE.w, MIN_GROUP.w, GRID.cols);
+    const h = clampInt(at.h ?? DEFAULT_GROUP_SIZE.h, MIN_GROUP.h, GRID.rows);
     const group: GroupState = {
       gid,
       title: (title ?? `Group ${count + 1}`).slice(0, MAX_GROUP_TITLE),
-      x: Math.max(0, at.x ?? ORIGIN.x + count * STAGGER),
-      y: Math.max(0, at.y ?? ORIGIN.y + count * STAGGER),
-      w: Math.max(MIN_GROUP_WIDTH, at.w ?? DEFAULT_GROUP_SIZE.w),
-      h: Math.max(MIN_GROUP_HEIGHT, at.h ?? DEFAULT_GROUP_SIZE.h),
+      x: clampInt(at.x ?? ORIGIN.x + count * STAGGER, 0, GRID.cols - w),
+      y: clampInt(at.y ?? ORIGIN.y + count * STAGGER, 0, GRID.rows - h),
+      w,
+      h,
       color: GROUP_COLORS[count % GROUP_COLORS.length] ?? 'blue'
     };
     set({ groups: { ...groups, [gid]: group }, gseq: gseq + 1 });
@@ -195,13 +199,20 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
   moveGroup(gid, x, y) {
     const group = get().groups[gid];
     if (!group) return;
-    const nx = Math.max(0, x);
-    const ny = Math.max(0, y);
+    const nx = clampInt(x, 0, GRID.cols - group.w);
+    const ny = clampInt(y, 0, GRID.rows - group.h);
     const dx = nx - group.x;
     const dy = ny - group.y;
+    if (dx === 0 && dy === 0) return;
     const panels = { ...get().panels };
     for (const panel of Object.values(panels)) {
-      if (panel.groupId === gid) panels[panel.iid] = { ...panel, x: Math.max(0, panel.x + dx), y: Math.max(0, panel.y + dy) };
+      if (panel.groupId === gid) {
+        panels[panel.iid] = {
+          ...panel,
+          x: clampInt(panel.x + dx, 0, GRID.cols - panel.w),
+          y: clampInt(panel.y + dy, 0, GRID.rows - panel.h)
+        };
+      }
     }
     set({ groups: { ...get().groups, [gid]: { ...group, x: nx, y: ny } }, panels });
   },
@@ -209,7 +220,10 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
   resizeGroup(gid, w, h) {
     const group = get().groups[gid];
     if (!group) return;
-    set({ groups: { ...get().groups, [gid]: { ...group, w: Math.max(MIN_GROUP_WIDTH, w), h: Math.max(MIN_GROUP_HEIGHT, h) } } });
+    const nw = clampInt(w, MIN_GROUP.w, GRID.cols - group.x);
+    const nh = clampInt(h, MIN_GROUP.h, GRID.rows - group.y);
+    if (nw === group.w && nh === group.h) return;
+    set({ groups: { ...get().groups, [gid]: { ...group, w: nw, h: nh } } });
   },
 
   renameGroup(gid, title) {
